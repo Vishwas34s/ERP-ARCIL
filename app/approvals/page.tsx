@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Badge, Panel } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useDemoUser } from '@/lib/auth';
 import { evaluateWorkflowMatch, matchBadgeTone } from '@/lib/matching';
 import { useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, Eye, PauseCircle, Search, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, PauseCircle, Search, X, XCircle, Wallet } from 'lucide-react';
 
 function toneForStatus(status: WorkflowItem['status']) {
   if (status === 'Approved' || status === 'Queued for Payment' || status === 'Paid') return 'emerald';
@@ -114,6 +115,11 @@ function ApprovalDetail({ item, onClose }: { item: WorkflowItem; onClose: () => 
                   <DetailField label="Workflow ID" value={item.id} />
                   <DetailField label="ERP sync" value={item.erpSyncStatus} />
                   <DetailField label="Review required" value={result.status === 'Variance Detected' ? 'Yes' : 'No'} />
+                  {item.paymentStatus === 'Ready' && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Link href={`/payments/create?invoiceId=${encodeURIComponent(item.id)}`} className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-cyan-200"><Wallet size={14} />Create payment</Link>
+                    </div>
+                  )}
                 </div>
               </div>
             </aside>
@@ -144,8 +150,9 @@ export default function ApprovalsPage() {
       return;
     }
 
+    const queueStatus = status === 'Approved' ? 'Queued for Payment' : status;
     const paymentStatus = status === 'Approved' ? 'Ready' : status === 'On Hold' ? 'Hold' : 'Not Ready';
-    update(item.id, { status, paymentStatus }, user.role);
+    update(item.id, { status: queueStatus, paymentStatus }, user.role);
     toast({
       type: status === 'Approved' ? 'success' : status === 'Rejected' ? 'error' : 'warning',
       title: status === 'Approved' ? 'Approval Submitted' : status === 'Rejected' ? 'Approval Rejected' : 'Approval On Hold',
@@ -183,7 +190,7 @@ export default function ApprovalsPage() {
                   <td className="border-b border-white/5 px-3 py-4"><div className="flex flex-wrap gap-2"><Badge tone={matchBadgeTone(result.status)}>{result.status}</Badge>{result.variances.slice(0, 2).map((variance, index) => <Badge key={`${variance.field}-${index}`} tone={variance.severity === 'critical' ? 'rose' : 'amber'}>{variance.field}</Badge>)}</div></td>
                   <td className="border-b border-white/5 px-3 py-4"><Badge tone={toneForStatus(item.status)}>{item.status}</Badge></td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-400">{item.lastActionBy}</td>
-                  <td className="border-b border-white/5 px-3 py-4"><div className="flex flex-wrap gap-2"><button onClick={() => decide(item, 'Approved')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-200"><CheckCircle2 size={14} />Approve</button><button onClick={() => decide(item, 'Rejected')} className="inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"><XCircle size={14} />Reject</button><button onClick={() => decide(item, 'On Hold')} className="inline-flex items-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/15"><PauseCircle size={14} />Hold</button></div></td>
+                  <td className="border-b border-white/5 px-3 py-4"><div className="flex flex-wrap gap-2"><button onClick={() => decide(item, 'Approved')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-200"><CheckCircle2 size={14} />Approve</button><button onClick={() => decide(item, 'Rejected')} className="inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"><XCircle size={14} />Reject</button><button onClick={() => decide(item, 'On Hold')} className="inline-flex items-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/15"><PauseCircle size={14} />Hold</button>{item.paymentStatus === 'Ready' && <Link href={`/payments/create?invoiceId=${encodeURIComponent(item.id)}`} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/15"><Wallet size={14} />Pay</Link>}</div></td>
                 </tr>
               );
             })}</tbody>

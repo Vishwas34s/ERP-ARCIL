@@ -19,7 +19,7 @@ export type WorkflowItem = {
   approvalLevel: 'L1' | 'L2' | 'L3';
   status: WorkflowStatus;
   matchStatus: 'Matched' | 'Variance' | 'Pending';
-  paymentMode: 'RTGS' | 'NEFT' | 'Cheque' | 'UPI';
+  paymentMode: 'RTGS' | 'NEFT' | 'Cheque' | 'UPI' | 'Manual Bank Transfer';
   paymentStatus: 'Not Ready' | 'Ready' | 'Paid' | 'Failed' | 'Hold';
   erpSyncStatus: 'Pending' | 'Synced';
   lastActionBy: string;

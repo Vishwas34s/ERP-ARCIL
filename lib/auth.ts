@@ -26,7 +26,7 @@ export const demoUsers: DemoUser[] = [
     level: 'Admin',
     title: 'Full P2P operations owner',
     scope: 'Can see all operational data, monitor every phase, execute payments, and complete post-payment processing.',
-    nav: ['/', '/vendors', '/purchase-orders', '/invoices', '/matching', '/approvals', '/payments', '/audit', '/settings'],
+    nav: ['/', '/vendors', '/vendor-approvals', '/purchase-orders', '/invoices', '/matching', '/approvals', '/payments', '/audit', '/settings'],
     accent: 'emerald',
   },
   {
@@ -62,7 +62,7 @@ export const demoUsers: DemoUser[] = [
     level: 'L3',
     title: 'Approves invoices above INR 1,00,000',
     scope: 'Can approve, reject, or hold high-value invoices routed to L3 only.',
-    nav: ['/', '/approvals'],
+    nav: ['/', '/vendor-approvals', '/approvals'],
     accent: 'amber',
   },
   {

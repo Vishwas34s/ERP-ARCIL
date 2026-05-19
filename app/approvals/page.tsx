@@ -169,12 +169,11 @@ export default function ApprovalsPage() {
       <Panel title={`Approval table (${myRows.length})`} subtitle="The eye action opens PO, GRN, invoice, and variance details for the selected approval item.">
         <div className="overflow-auto">
           <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-left text-sm">
-            <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-3">View</th><th className="border-b border-white/10 px-3 py-3">Invoice</th><th className="border-b border-white/10 px-3 py-3">Vendor</th><th className="border-b border-white/10 px-3 py-3">PO / GRN</th><th className="border-b border-white/10 px-3 py-3">Amount</th><th className="border-b border-white/10 px-3 py-3">Level</th><th className="border-b border-white/10 px-3 py-3">Match</th><th className="border-b border-white/10 px-3 py-3">Status</th><th className="border-b border-white/10 px-3 py-3">Last action</th><th className="border-b border-white/10 px-3 py-3">Action</th></tr></thead>
+            <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-3">Invoice</th><th className="border-b border-white/10 px-3 py-3">Vendor</th><th className="border-b border-white/10 px-3 py-3">PO / GRN</th><th className="border-b border-white/10 px-3 py-3">Amount</th><th className="border-b border-white/10 px-3 py-3">Level</th><th className="border-b border-white/10 px-3 py-3">Match</th><th className="border-b border-white/10 px-3 py-3">Status</th><th className="border-b border-white/10 px-3 py-3">Last action</th><th className="border-b border-white/10 px-3 py-3">Action</th><th className="border-b border-white/10 px-3 py-3">View</th></tr></thead>
             <tbody>{myRows.map((item) => {
               const result = evaluateWorkflowMatch(item);
               return (
                 <tr key={item.id} className="transition hover:bg-white/[0.03]">
-                  <td className="border-b border-white/5 px-3 py-4"><button onClick={() => setSelected(item)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-cyan-200 transition hover:bg-white/10" aria-label={`View details for ${item.invoiceNumber}`}><Eye size={17} /></button></td>
                   <td className="border-b border-white/5 px-3 py-4 font-medium text-white">{item.invoiceNumber}</td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.vendorName}</td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.poNumber} / {item.grnNumber}</td>
@@ -184,6 +183,7 @@ export default function ApprovalsPage() {
                   <td className="border-b border-white/5 px-3 py-4"><Badge tone={toneForStatus(item.status)}>{item.status}</Badge></td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-400">{item.lastActionBy}</td>
                   <td className="border-b border-white/5 px-3 py-4"><div className="flex flex-wrap gap-2"><button onClick={() => decide(item, 'Approved')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-200"><CheckCircle2 size={14} />Approve</button><button onClick={() => decide(item, 'Rejected')} className="inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"><XCircle size={14} />Reject</button><button onClick={() => decide(item, 'On Hold')} className="inline-flex items-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/15"><PauseCircle size={14} />Hold</button></div></td>
+                  <td className="border-b border-white/5 px-3 py-4 text-right"><div className="flex justify-end"><button onClick={() => setSelected(item)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-cyan-200 transition hover:bg-white/10" aria-label={`View details for ${item.invoiceNumber}`}><Eye size={17} /></button></div></td>
                 </tr>
               );
             })}</tbody>

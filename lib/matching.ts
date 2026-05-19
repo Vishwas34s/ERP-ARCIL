@@ -79,7 +79,7 @@ export function evaluateWorkflowMatch(item: WorkflowItem): { status: MatchStatus
   return { status: variances.length ? 'Variance Detected' : 'Matched', variances };
 }
 
-export function validateManualInvoice(draft: ManualInvoiceDraft, records: WorkflowItem[], existingInvoiceNumbers: string[] = []): InvoiceValidationResult {
+export function validateManualInvoice(draft: ManualInvoiceDraft, records: WorkflowItem[], existingInvoiceNumbers: string[] = [], vendors: import('./types').Vendor[] = []): InvoiceValidationResult {
   const errors: string[] = [];
   const variances: VarianceDetail[] = [];
   const required: Array<[keyof ManualInvoiceDraft, string]> = [
@@ -115,6 +115,15 @@ export function validateManualInvoice(draft: ManualInvoiceDraft, records: Workfl
 
   if (existingInvoiceNumbers.some((invoice) => sameText(invoice, draft.invoiceNumber))) {
     errors.push('Duplicate invoice number detected.');
+  }
+
+  const matchingVendor = vendors.find(v => sameText(v.legalName, draft.vendorName) || sameText(v.displayName, draft.vendorName));
+  if (matchingVendor) {
+    if (matchingVendor.blacklistFlag === 'Yes') {
+      errors.push('Vendor is blacklisted and not allowed to submit invoices.');
+    } else if (matchingVendor.approvalStatus !== 'Approved') {
+      errors.push('Vendor onboarding is incomplete. Approval required before invoicing.');
+    }
   }
 
   const poSource = records.find((item) => sameText(item.poNumber, draft.poNumber));

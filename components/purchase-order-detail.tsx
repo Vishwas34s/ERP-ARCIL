@@ -4,7 +4,7 @@ import { Badge, Panel } from '@/components/ui';
 import { formatDate, money } from '@/lib/utils';
 import { statusTone } from '@/lib/purchase-orders';
 import type { PurchaseOrder } from '@/lib/types';
-import { Download, Printer } from 'lucide-react';
+import { InvoiceSummarySheet } from '@/components/invoice-summary-sheet';
 
 function DetailBlock({ label, value }: { label: string; value: string }) {
   return (
@@ -18,6 +18,7 @@ function DetailBlock({ label, value }: { label: string; value: string }) {
 export function PurchaseOrderDetail({ po, actions = true }: { po: PurchaseOrder; actions?: boolean }) {
   return (
     <div className="space-y-5">
+      <InvoiceSummarySheet po={po} />
       <Panel
         title={`${po.poNumber} details`}
         subtitle="Matching-ready purchase order record for PO, GRN, and invoice comparison."

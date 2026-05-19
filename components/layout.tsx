@@ -11,6 +11,7 @@ import { canAccess, demoUsers, findDemoUser, storageKey, type DemoUser } from '@
 const nav = [
   { href: '/', label: 'Overview', icon: BarChart3 },
   { href: '/vendors', label: 'Vendors', icon: Building2 },
+  { href: '/vendor-approvals', label: 'Vendor Approvals', icon: UserRoundCheck },
   { href: '/purchase-orders', label: 'Purchase Order', icon: ClipboardList },
   { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/matching', label: '3-Way Match', icon: GitBranch },

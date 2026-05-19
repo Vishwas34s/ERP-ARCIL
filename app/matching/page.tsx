@@ -101,7 +101,7 @@ function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder) {
   const poTotal = poRecord?.finalTotalAmount || (item.poAmount + poGst);
   const invTotal = item.invoiceAmount + item.gstAmount;
 
-  const poRemarks = poRecord?.remarks || 'Delivery window: 9 AM - 5 PM.';
+  const poRemarks = 'Delivery window: 9 AM - 5 PM.';
   const grnRemarks = 'Gate check passed. Quantity physically counted and verified.';
   const invRemarks = item.lastActionBy === 'Manual Invoice Entry' ? 'Manually processed invoice.' : 'Digitized via AI OCR intake.';
 
@@ -248,7 +248,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
   const poDate = poRecord?.poDate || getFallbackPoDate(item.invoiceDate);
   const receiptDate = getFallbackReceiptDate(item.invoiceDate);
   const poPayment = poRecord?.paymentTerms || 'Net 30';
-  const poRemarks = poRecord?.remarks || 'Delivery window: 9 AM - 5 PM.';
+  const poRemarks = 'Delivery window: 9 AM - 5 PM.';
   const grnRemarks = 'Gate check passed. Quantity physically counted and verified.';
   const invRemarks = item.lastActionBy === 'Manual Invoice Entry' ? 'Manually processed invoice.' : 'Digitized via AI OCR intake.';
 

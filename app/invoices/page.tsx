@@ -1,13 +1,14 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Badge, Panel } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { demoData } from '@/lib/data';
 import { matchBadgeTone, validateManualInvoice, type InvoiceValidationResult, type ManualInvoiceDraft } from '@/lib/matching';
 import { approvalLevelFor, useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, FileText, Save, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, Save, Wallet, XCircle } from 'lucide-react';
 
 const emptyDraft: ManualInvoiceDraft = {
   invoiceNumber: '',
@@ -210,6 +211,7 @@ export default function InvoicesPage() {
                 <th className="border-b border-white/10 px-3 py-3">Validation</th>
                 <th className="border-b border-white/10 px-3 py-3">Approval</th>
                 <th className="border-b border-white/10 px-3 py-3">ERP</th>
+                <th className="border-b border-white/10 px-3 py-3">Payment</th>
                 <th className="border-b border-white/10 px-3 py-3">Result message</th>
               </tr>
             </thead>
@@ -228,6 +230,7 @@ export default function InvoicesPage() {
                     <td className="border-b border-white/5 px-3 py-4"><Badge tone={invoice.validationStatus === 'Pass' ? 'emerald' : invoice.validationStatus === 'Fail' ? 'rose' : 'amber'}>{invoice.validationStatus}</Badge><div className="mt-2 text-xs text-slate-500">OCR {invoice.ocrConfidence}%</div></td>
                     <td className="border-b border-white/5 px-3 py-4"><Badge tone={invoice.approvalLevel === 'L1' ? 'cyan' : invoice.approvalLevel === 'L2' ? 'violet' : invoice.approvalLevel === 'L3' ? 'amber' : 'slate'}>{invoice.approvalLevel}</Badge><div className="mt-2 text-xs text-slate-500">{invoice.approvalStatus}</div></td>
                     <td className="border-b border-white/5 px-3 py-4"><Badge tone={invoice.erpSyncStatus === 'Synced' ? 'emerald' : invoice.erpSyncStatus === 'Failed' ? 'rose' : 'slate'}>{invoice.erpSyncStatus}</Badge><div className="mt-2 text-xs text-slate-500">Retries {invoice.retryCount}</div></td>
+                    <td className="border-b border-white/5 px-3 py-4"><Link href={`/payments?invoiceId=${encodeURIComponent(invoice.id)}`} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/15"><Wallet size={14} />Payments</Link></td>
                     <td className="border-b border-white/5 px-3 py-4">
                       <div className="flex items-start gap-2">
                         {outcome.label === 'Success' ? <CheckCircle2 size={17} className="mt-0.5 text-emerald-300" /> : outcome.label === 'Failure' ? <XCircle size={17} className="mt-0.5 text-rose-300" /> : <FileText size={17} className="mt-0.5 text-amber-300" />}

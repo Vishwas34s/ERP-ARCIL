@@ -78,7 +78,7 @@ function VendorDetail({ vendor, onClose, onApprove, onReject, canManage }: Vendo
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={statusTone}>{vendor.approvalStatus}</Badge>
               <Badge tone={vendor.blacklistFlag === 'Yes' ? 'rose' : 'cyan'}>
-                {vendor.blacklistFlag === 'Yes' ? 'Blacklisted' : 'Clear KYC'}
+                {vendor.blacklistFlag === 'Yes' ? 'Rejected' : 'Clear KYC'}
               </Badge>
               <Badge tone="slate">{vendor.vendorType}</Badge>
             </div>
@@ -172,10 +172,10 @@ function VendorDetail({ vendor, onClose, onApprove, onReject, canManage }: Vendo
                     type="text" 
                     value={reason} 
                     onChange={(e) => setReason(e.target.value)} 
-                    placeholder="Enter reason for blacklist" 
+                    placeholder="Enter reason for rejection" 
                     className="rounded-lg border border-rose-500/30 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none w-full"
                   />
-                  <button onClick={submitReject} className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600 transition whitespace-nowrap">Confirm Blacklist</button>
+                  <button onClick={submitReject} className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600 transition whitespace-nowrap">Confirm Rejection</button>
                   <button onClick={() => setRejecting(false)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10 transition">Cancel</button>
                 </div>
               ) : (
@@ -193,7 +193,7 @@ function VendorDetail({ vendor, onClose, onApprove, onReject, canManage }: Vendo
                       onClick={() => setRejecting(true)} 
                       className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 transition"
                     >
-                      <Lock size={14} /> Blacklist & Reject
+                      <Lock size={14} /> Reject Vendor
                     </button>
                   )}
                 </>
@@ -245,8 +245,8 @@ export default function VendorApprovalsPage() {
     reject(id, user.role, reason);
     toast({
       type: 'error',
-      title: 'Vendor Blacklisted',
-      description: 'Supplier was rejected and blacklisted from invoice workflows.',
+      title: 'Vendor Rejected',
+      description: 'Supplier was rejected and blocked from invoice workflows.',
     });
   };
 
@@ -262,7 +262,7 @@ export default function VendorApprovalsPage() {
       {/* Header and Statistics panel */}
       <Panel
         title="Phase 4: Vendor Onboarding & Approval Overview"
-        subtitle="Review, approve, or blacklist supplier KYC registration profiles. Blacklisted suppliers are blocked from invoice workflows."
+        subtitle="Review, approve, or reject supplier KYC registration profiles. Rejected suppliers are blocked from invoice workflows."
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4">
@@ -282,7 +282,7 @@ export default function VendorApprovalsPage() {
           </div>
           <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-4">
             <ShieldAlert className="text-rose-300" size={20} />
-            <div className="mt-2 text-xs uppercase tracking-[0.18em] text-rose-300">Blacklisted / Rejected</div>
+            <div className="mt-2 text-xs uppercase tracking-[0.18em] text-rose-300">Rejected Suppliers</div>
             <div className="mt-2 text-2xl font-semibold text-white">{stats.blacklisted}</div>
           </div>
         </div>
@@ -376,7 +376,7 @@ export default function VendorApprovalsPage() {
                         {canManage && !isBlacklisted && (
                           <button 
                             onClick={() => {
-                              const reason = prompt('Enter blacklist reason:', 'Failed KYC check');
+                              const reason = prompt('Enter rejection reason:', 'Failed KYC check');
                               if (reason) handleReject(v.id, reason);
                             }} 
                             className="rounded-lg bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition"

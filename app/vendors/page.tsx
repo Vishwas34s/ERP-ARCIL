@@ -107,9 +107,9 @@ export default function VendorsPage() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [adminVendor, setAdminVendor] = useState<AdminVendorDraft>(emptyAdminVendor);
   const [createdVendors, setCreatedVendors] = useState<AdminVendor[]>(() => readAdminVendors());
-  const isVendor = user.key === 'vendor';
+  const isVendor = false;
   const isAdmin = user.key === 'admin';
-  const rows = useMemo(() => isVendor ? items.filter((item) => item.vendorName === draft.vendorName || item.lastActionBy === user.role) : items, [items, isVendor, draft.vendorName, user.role]);
+  const rows = useMemo(() => items, [items]);
   const latestDirectory = useMemo(() => demoData.vendors.slice(0, 8), []);
 
   function edit(item: WorkflowItem) {
@@ -183,7 +183,7 @@ export default function VendorsPage() {
 
   return (
     <div className="space-y-5">
-      <Panel title="Vendor PO / GRN / Invoice workspace" subtitle={isVendor ? 'Add, update, and delete the data needed for 3-way matching.' : 'Admin view of vendor onboarding, submitted PO, GRN, delivery challan, and invoice records.'}>
+      <Panel title="Vendor PO / GRN / Invoice workspace" subtitle="Admin view of vendor onboarding, submitted PO, GRN, delivery challan, and invoice records.">
         <div className="grid gap-3 md:grid-cols-4">
           <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Role</div><div className="mt-2 text-lg font-semibold text-white">{user.role}</div></div>
           <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Rows</div><div className="mt-2 text-2xl font-semibold text-white">{rows.length}</div></div>
@@ -230,24 +230,12 @@ export default function VendorsPage() {
         </Panel>
       )}
 
-      {isVendor && (
-        <Panel title={editingId ? 'Update submitted record' : 'Create PO, GRN, and invoice record'} subtitle="The invoice amount automatically decides L1, L2, or L3 approval routing.">
-          <form onSubmit={submit} className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-            {[
-              ['Vendor name', 'vendorName'], ['PO number', 'poNumber'], ['PO amount', 'poAmount'], ['PO qty', 'poQty'], ['GRN number', 'grnNumber'], ['GRN qty', 'grnQty'], ['Delivery challan', 'challanNumber'], ['Invoice number', 'invoiceNumber'], ['Invoice date', 'invoiceDate'], ['Invoice amount', 'invoiceAmount'], ['GST amount', 'gstAmount'],
-            ].map(([label, key]) => <label key={key} className="text-sm text-slate-300">{label}<input required value={String(draft[key as keyof Draft])} type={key.includes('Amount') || key.includes('Qty') || key === 'gstAmount' || key === 'poAmount' || key === 'invoiceAmount' ? 'number' : key === 'invoiceDate' ? 'date' : 'text'} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.type === 'number' ? Number(event.target.value) : event.target.value }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30" /></label>)}
-            <label className="text-sm text-slate-300">Match status<select value={draft.matchStatus} onChange={(event) => setDraft((current) => ({ ...current, matchStatus: event.target.value as Draft['matchStatus'] }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none"><option>Matched</option><option>Variance</option><option>Pending</option></select></label>
-            <label className="text-sm text-slate-300">Payment mode<select value={draft.paymentMode} onChange={(event) => setDraft((current) => ({ ...current, paymentMode: event.target.value as Draft['paymentMode'] }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none"><option>RTGS</option><option>NEFT</option><option>Cheque</option><option>UPI</option></select></label>
-            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 md:self-end"><Save size={16} /> {editingId ? 'Update' : 'Add record'}</button>
-          </form>
-        </Panel>
-      )}
-
+      
       <Panel title="Submitted operational data" subtitle="This is the shared source for PO, GRN, invoice, approvals, and payments.">
         <div className="overflow-auto">
           <table className="min-w-[1250px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-3">Vendor</th><th className="border-b border-white/10 px-3 py-3">PO</th><th className="border-b border-white/10 px-3 py-3">GRN / DC</th><th className="border-b border-white/10 px-3 py-3">Invoice</th><th className="border-b border-white/10 px-3 py-3">Amount</th><th className="border-b border-white/10 px-3 py-3">Route</th><th className="border-b border-white/10 px-3 py-3">Match</th><th className="border-b border-white/10 px-3 py-3">Approval</th><th className="border-b border-white/10 px-3 py-3">Payment</th><th className="border-b border-white/10 px-3 py-3">Actions</th></tr></thead>
-            <tbody>{rows.map((item) => <tr key={item.id} className="transition hover:bg-white/[0.03]"><td className="border-b border-white/5 px-3 py-4 font-medium text-white">{item.vendorName}</td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.poNumber}<div className="text-xs text-slate-500">{money(item.poAmount)} | Qty {item.poQty}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.grnNumber}<div className="text-xs text-slate-500">{item.challanNumber} | Qty {item.grnQty}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.invoiceNumber}<div className="text-xs text-slate-500">{item.invoiceDate}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(item.invoiceAmount)}</td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.approvalLevel === 'L1' ? 'cyan' : item.approvalLevel === 'L2' ? 'violet' : 'amber'}>{item.approvalLevel}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.matchStatus === 'Matched' ? 'emerald' : item.matchStatus === 'Variance' ? 'amber' : 'slate'}>{item.matchStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.status === 'Approved' ? 'emerald' : item.status === 'Rejected' ? 'rose' : item.status === 'On Hold' ? 'amber' : 'cyan'}>{item.status}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.paymentStatus === 'Ready' || item.paymentStatus === 'Paid' ? 'emerald' : item.paymentStatus === 'Hold' ? 'amber' : 'slate'}>{item.paymentStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><div className="flex gap-2">{isVendor && <><button onClick={() => edit(item)} className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"><Plus size={14} />Edit</button><button onClick={() => removeRecord(item)} className="inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"><Trash2 size={14} />Delete</button></>}</div></td></tr>)}</tbody>
+            <tbody>{rows.map((item) => <tr key={item.id} className="transition hover:bg-white/[0.03]"><td className="border-b border-white/5 px-3 py-4 font-medium text-white">{item.vendorName}</td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.poNumber}<div className="text-xs text-slate-500">{money(item.poAmount)} | Qty {item.poQty}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.grnNumber}<div className="text-xs text-slate-500">{item.challanNumber} | Qty {item.grnQty}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.invoiceNumber}<div className="text-xs text-slate-500">{item.invoiceDate}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(item.invoiceAmount)}</td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.approvalLevel === 'L1' ? 'cyan' : item.approvalLevel === 'L2' ? 'violet' : 'amber'}>{item.approvalLevel}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.matchStatus === 'Matched' ? 'emerald' : item.matchStatus === 'Variance' ? 'amber' : 'slate'}>{item.matchStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.status === 'Approved' ? 'emerald' : item.status === 'Rejected' ? 'rose' : item.status === 'On Hold' ? 'amber' : 'cyan'}>{item.status}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={item.paymentStatus === 'Ready' || item.paymentStatus === 'Paid' ? 'emerald' : item.paymentStatus === 'Hold' ? 'amber' : 'slate'}>{item.paymentStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><div className="flex gap-2"></div></td></tr>)}</tbody>
           </table>
         </div>
       </Panel>

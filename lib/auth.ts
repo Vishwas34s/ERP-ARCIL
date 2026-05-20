@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-export type DemoRoleKey = 'admin' | 'l1' | 'l2' | 'l3' | 'vendor';
+export type DemoRoleKey = 'admin' | 'l1' | 'l2' | 'l3';
 
 export type DemoUser = {
   key: DemoRoleKey;
@@ -64,18 +64,6 @@ export const demoUsers: DemoUser[] = [
     scope: 'Can approve, reject, or hold high-value invoices routed to L3 only.',
     nav: ['/', '/vendor-approvals', '/approvals'],
     accent: 'amber',
-  },
-  {
-    key: 'vendor',
-    name: 'Vendor Portal',
-    email: 'vendor@procureflow.test',
-    password: 'Vendor@2026',
-    role: 'Vendor',
-    level: 'Vendor',
-    title: 'Submits PO, GRN, and invoice details',
-    scope: 'Can add, update, and delete PO details, delivery challan/GRN details, and invoice submissions.',
-    nav: ['/', '/vendors', '/purchase-orders', '/invoices', '/matching'],
-    accent: 'rose',
   },
 ];
 

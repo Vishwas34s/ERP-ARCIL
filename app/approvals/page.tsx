@@ -33,11 +33,11 @@ function ApprovalDetail({ item, onClose }: { item: WorkflowItem; onClose: () => 
   ];
 
   return (
-    <div className="fixed inset-0 z-40 bg-slate-950/75 p-3 backdrop-blur-sm sm:p-5" role="dialog" aria-modal="true">
-      <div className="ml-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#07111f] shadow-2xl">
+    <div className="fixed inset-0 z-40 bg-slate-950/75 p-3 backdrop-blur-sm sm:p-5 overscroll-contain pointer-events-auto" role="dialog" aria-modal="true">
+      <div className="ml-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#07111f] shadow-2xl min-h-0">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 p-4 sm:p-5">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-h-0">
               <Badge tone={item.approvalLevel === 'L1' ? 'cyan' : item.approvalLevel === 'L2' ? 'violet' : 'amber'}>{item.approvalLevel}</Badge>
               <Badge tone={toneForStatus(item.status)}>{item.status}</Badge>
               <Badge tone={matchBadgeTone(result.status)}>{result.status}</Badge>
@@ -48,7 +48,7 @@ function ApprovalDetail({ item, onClose }: { item: WorkflowItem; onClose: () => 
           <button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10" aria-label="Close approval detail"><X size={17} /></button>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 sm:p-5">
+        <div className="flex-1 overflow-auto p-4 sm:p-5 overscroll-contain">
           <div className="grid gap-4 xl:grid-cols-[1fr_0.85fr]">
             <section className="space-y-4">
               <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
@@ -79,7 +79,7 @@ function ApprovalDetail({ item, onClose }: { item: WorkflowItem; onClose: () => 
 
               <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                 <div className="text-sm font-semibold text-white">PO / GRN / Invoice details</div>
-                <div className="mt-4 overflow-auto">
+                <div className="mt-4 overflow-auto overscroll-x-contain">
                   <table className="min-w-[640px] w-full border-separate border-spacing-0 text-left text-sm">
                     <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-2">Document</th><th className="border-b border-white/10 px-3 py-2">Reference</th><th className="border-b border-white/10 px-3 py-2">Amount</th><th className="border-b border-white/10 px-3 py-2">Qty</th></tr></thead>
                     <tbody>

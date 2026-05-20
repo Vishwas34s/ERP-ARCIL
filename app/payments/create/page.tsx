@@ -3,13 +3,14 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Badge, Panel } from '@/components/ui';
+import { Badge, Panel, ConfirmationModal } from '@/components/ui';
 import { useToast } from '@/components/toast';
+import { usePersistentFormState } from '@/lib/form-store';
 import { useDemoUser } from '@/lib/auth';
 import { usePaymentRecords } from '@/lib/payment-store';
 import { useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { ArrowLeft, Banknote, CheckCircle2, FileText, Save } from 'lucide-react';
+import { ArrowLeft, Banknote, CheckCircle2, FileText, RotateCcw, Save } from 'lucide-react';
 
 const paymentMethods = ['RTGS', 'NEFT', 'UPI', 'Cheque', 'Manual Bank Transfer'] as const;
 
@@ -103,7 +104,8 @@ export default function CreatePaymentPage() {
   const toast = useToast();
   const { items, update } = useWorkflowItems();
   const { create } = usePaymentRecords();
-  const [form, setForm] = useState<PaymentForm>(emptyForm);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [form, setForm, clearForm] = usePersistentFormState<PaymentForm>('payment-entry-form', emptyForm);
   const selectedItem = useMemo(() => items.find((item) => item.id === invoiceId), [items, invoiceId]);
   const existingPending = items.filter((item) => item.paymentStatus === 'Ready' || item.status === 'Queued for Payment').length;
 
@@ -182,7 +184,13 @@ export default function CreatePaymentPage() {
     }
 
     toast({ type: 'success', title: 'Payment Created', description: `A payment instruction for ${form.invoiceNumber} is now recorded.` });
+    clearForm();
     router.push('/payments');
+  }
+
+  function handleClearForm() {
+    clearForm();
+    toast({ type: 'info', title: 'Form Cleared', description: 'Payment instruction template reset.' });
   }
 
   return (
@@ -251,10 +259,12 @@ export default function CreatePaymentPage() {
             </label>
             <div className="flex flex-wrap gap-3">
               <button type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"><Save size={16} /> Save payment</button>
+              <button type="button" onClick={() => setShowClearModal(true)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300"><RotateCcw size={16} /> Clear data</button>
               <Link href="/payments" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/10"><FileText size={16} /> Cancel</Link>
             </div>
           </div>
         </div>
+        <ConfirmationModal isOpen={showClearModal} onClose={() => setShowClearModal(false)} onConfirm={handleClearForm} title="Clear Payment Data?" description="This will remove all payment and beneficiary details currently entered in the template." />
       </form>
 
       <Panel title="Payment readiness" subtitle="Payments created from approved invoices retain strong linkage to the original AP workflow.">

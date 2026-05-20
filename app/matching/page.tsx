@@ -253,8 +253,8 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
   const invRemarks = item.lastActionBy === 'Manual Invoice Entry' ? 'Manually processed invoice.' : 'Digitized via AI OCR intake.';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-md transition-all duration-300" role="dialog" aria-modal="true">
-      <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#07111f] shadow-2xl transition-all duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm transition-all duration-300 overscroll-contain pointer-events-auto" role="dialog" aria-modal="true">
+      <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#07111f] shadow-2xl transition-all duration-300 min-h-0 relative">
         
         {/* Modal Header */}
         <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -323,10 +323,10 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
         </div>
 
         {/* Modal Main Scrollable Workspace */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-5 overscroll-contain scrollbar-thin scrollbar-thumb-white/10">
           {layout === 'table' ? (
             /* TABULAR COMPARISON LAYOUT */
-            <div className="overflow-x-auto rounded-xl border border-white/10 bg-slate-950/20">
+            <div className="overflow-x-auto rounded-xl border border-white/10 bg-slate-950/20 overscroll-x-contain">
               <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="bg-slate-950/60 text-xs uppercase tracking-[0.14em] text-slate-500">
@@ -753,7 +753,7 @@ export default function MatchingPage() {
       </Panel>
 
       <Panel title="PO / GRN / Invoice comparison" subtitle="Status and variance details only. Mismatched fields are highlighted for review.">
-        <div className="overflow-auto">
+        <div className="overflow-auto overscroll-x-contain">
           <table className="min-w-[1220px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead>
               <tr className="text-xs uppercase tracking-[0.14em] text-slate-500">

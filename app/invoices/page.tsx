@@ -2,13 +2,15 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Panel } from '@/components/ui';
+import { Badge, Panel, ConfirmationModal } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { demoData } from '@/lib/data';
+import { addAuditEntry } from '@/lib/audit-store';
+import { usePersistentFormState } from '@/lib/form-store';
 import { matchBadgeTone, validateManualInvoice, type InvoiceValidationResult, type ManualInvoiceDraft } from '@/lib/matching';
 import { approvalLevelFor, useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, FileText, Save, Wallet, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, RotateCcw, Save, Wallet, XCircle } from 'lucide-react';
 
 const emptyDraft: ManualInvoiceDraft = {
   invoiceNumber: '',
@@ -87,8 +89,9 @@ export default function InvoicesPage() {
   const invoices = demoData.invoices.slice(0, 50);
   const { items, save } = useWorkflowItems();
   const toast = useToast();
-  const [draft, setDraft] = useState<ManualInvoiceDraft>(emptyDraft);
+  const [draft, setDraft, clearDraft] = usePersistentFormState<ManualInvoiceDraft>('invoice-entry-form', emptyDraft);
   const [result, setResult] = useState<InvoiceValidationResult | null>(null);
+  const [showClearModal, setShowClearModal] = useState(false);
   const successCount = invoices.filter((invoice) => invoiceOutcome(invoice).label === 'Success').length;
   const failureCount = invoices.filter((invoice) => invoiceOutcome(invoice).label === 'Failure').length;
   const totalValue = invoices.reduce((sum, invoice) => sum + invoice.grossAmount, 0);
@@ -99,7 +102,7 @@ export default function InvoicesPage() {
   }
 
   function validateCurrent() {
-    const nextResult = validateManualInvoice(draft, items, existingInvoiceNumbers);
+    const nextResult = validateManualInvoice(draft, items, demoData.purchaseOrders, demoData.vendors, existingInvoiceNumbers);
     setResult(nextResult);
     toast({
       type: nextResult.valid ? nextResult.status === 'Matched' ? 'success' : 'warning' : 'error',
@@ -115,16 +118,23 @@ export default function InvoicesPage() {
     if (!nextResult.valid) return;
 
     const poSource = nextResult.poSource;
+    const poOrder = nextResult.poOrder;
+    const vendorReference = nextResult.vendorReference;
     const grnSource = nextResult.grnSource;
     const nextItem: WorkflowItem = {
       id: `WF-${String(Date.now()).slice(-6)}`,
-      vendorName: draft.vendorName,
+      vendorId: vendorReference?.id,
+      vendorName: vendorReference?.displayName ?? draft.vendorName,
+      vendorGstin: draft.vendorGstin,
+      poId: poOrder?.id,
       poNumber: draft.poNumber,
-      poAmount: poSource?.poAmount ?? draft.invoiceAmount,
-      poQty: poSource?.poQty ?? draft.quantity,
+      poAmount: poOrder?.finalTotalAmount ?? poSource?.poAmount ?? draft.invoiceAmount,
+      poQty: poOrder?.items.reduce((sum, item) => sum + item.quantityOrdered, 0) ?? poSource?.poQty ?? draft.quantity,
+      grnId: grnSource?.id,
       grnNumber: draft.grnNumber,
       grnQty: grnSource?.grnQty ?? draft.quantity,
       challanNumber: draft.challanNumber || grnSource?.challanNumber || draft.grnNumber,
+      invoiceId: `INV-${String(Date.now()).slice(-6)}`,
       invoiceNumber: draft.invoiceNumber,
       invoiceDate: draft.invoiceDate,
       invoiceAmount: draft.invoiceAmount,
@@ -140,12 +150,42 @@ export default function InvoicesPage() {
     };
 
     save([nextItem, ...items]);
+    addAuditEntry({
+      module: 'Invoice',
+      entityType: 'Invoice',
+      entityId: nextItem.invoiceId ?? nextItem.id,
+      action: 'Created',
+      actor: 'Manual Invoice Entry',
+      actorRole: 'Purchasing',
+      ipAddress: '127.0.0.1',
+      device: 'Browser',
+      beforeStatus: '',
+      afterStatus: nextItem.status,
+      notes: `Manual invoice ${nextItem.invoiceNumber} created for PO ${nextItem.poNumber}`,
+      severity: 'low',
+      sourceSystem: 'ProcureFlow App',
+      correlationId: nextItem.id,
+      tenant: 'Default',
+      branch: 'Head Office',
+      region: 'APAC',
+      complianceRef: 'N/A',
+      payloadHash: '',
+      outcome: nextResult.status,
+      sessionId: 'session-unknown',
+      tags: 'invoice,workflow',
+    });
     toast({
       type: nextResult.status === 'Matched' ? 'success' : 'warning',
       title: nextResult.status === 'Matched' ? 'Invoice Submitted' : 'Variance Detected',
       description: nextResult.status === 'Matched' ? `${draft.invoiceNumber} moved to approval workflow.` : `${draft.invoiceNumber} was saved for review.`,
     });
-    setDraft(emptyDraft);
+    clearDraft();
+  }
+
+  function handleClearForm() {
+    clearDraft();
+    setResult(null);
+    toast({ type: 'info', title: 'Form Reset', description: 'Manual invoice entry fields have been cleared.' });
   }
 
   return (
@@ -173,9 +213,11 @@ export default function InvoicesPage() {
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={validateCurrent} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"><FileText size={16} /> Validate invoice</button>
             <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"><Save size={16} /> Submit to workflow</button>
+            <button type="button" onClick={() => setShowClearModal(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300"><RotateCcw size={16} /> Clear data</button>
           </div>
           {result && <ValidationResult result={result} />}
         </form>
+        <ConfirmationModal isOpen={showClearModal} onClose={() => setShowClearModal(false)} onConfirm={handleClearForm} title="Clear Invoice Form?" description="This will remove all entered invoice information from the current draft." />
       </Panel>
 
       <Panel title="Validation overview" subtitle="Manual entries use the same workflow data shown in matching and approvals.">

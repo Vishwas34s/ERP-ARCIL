@@ -2,15 +2,16 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Panel } from '@/components/ui';
+import { Badge, Panel, ConfirmationModal } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useDemoUser } from '@/lib/auth';
 import { demoData } from '@/lib/data';
 import { createEmptyLineItem, normalizePurchaseOrder, statusTone, validatePurchaseOrder } from '@/lib/purchase-orders';
+import { usePersistentFormState } from '@/lib/form-store';
 import { newPurchaseOrderDraft, usePurchaseOrders } from '@/lib/purchase-order-store';
 import { money } from '@/lib/utils';
 import type { PurchaseOrder, PurchaseOrderLineItem, Vendor } from '@/lib/types';
-import { CheckCircle2, Eye, FileDown, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, Eye, FileDown, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, XCircle } from 'lucide-react';
 
 type FieldErrors = Partial<Record<keyof PurchaseOrder | 'items', string>>;
 
@@ -116,10 +117,11 @@ export default function PurchaseOrdersPage() {
   const user = useDemoUser();
   const toast = useToast();
   const { items, save, remove, reset } = usePurchaseOrders();
-  const [draft, setDraft] = useState<PurchaseOrder>(() => emptyDraft());
+  const [draft, setDraft, clearDraft] = usePersistentFormState<PurchaseOrder>('po-creation-form', emptyDraft());
   const [editingId, setEditingId] = useState<string | undefined>();
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [showClearModal, setShowClearModal] = useState(false);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [sort, setSort] = useState('Newest');
@@ -220,7 +222,7 @@ export default function PurchaseOrdersPage() {
       title: editingId ? 'PO Updated' : 'PO Created',
       description: `${response.item.poNumber} is stored with matching-ready quantity, price, GST, and terms fields.`,
     });
-    setDraft(emptyDraft());
+    clearDraft();
     setEditingId(undefined);
     setErrors([]);
     setFieldErrors({});
@@ -234,6 +236,14 @@ export default function PurchaseOrdersPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function handleClearForm() {
+    clearDraft();
+    setEditingId(undefined);
+    setErrors([]);
+    setFieldErrors({});
+    toast({ type: 'info', title: 'Form Reset', description: 'Purchase order workspace has been cleared.' });
+  }
+
   function deletePo(po: PurchaseOrder) {
     remove(po.id);
     toast({ type: 'warning', title: 'PO Deleted', description: `${po.poNumber} was removed from PO management.` });
@@ -241,7 +251,7 @@ export default function PurchaseOrdersPage() {
 
   function resetData() {
     reset();
-    setDraft(emptyDraft());
+    clearDraft();
     setEditingId(undefined);
     setErrors([]);
     setFieldErrors({});
@@ -358,9 +368,11 @@ export default function PurchaseOrdersPage() {
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={validateDraft} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"><CheckCircle2 size={16} /> Validate PO</button>
             <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"><Save size={16} /> {editingId ? 'Update PO' : 'Save PO'}</button>
-            {editingId && <button type="button" onClick={() => { setEditingId(undefined); setDraft(emptyDraft()); setErrors([]); setFieldErrors({}); }} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"><XCircle size={16} /> Cancel edit</button>}
+            <button type="button" onClick={handleClearForm} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300"><RotateCcw size={16} /> Clear data</button>
+            {editingId && <button type="button" onClick={() => { setEditingId(undefined); clearDraft(); setErrors([]); setFieldErrors({}); }} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"><XCircle size={16} /> Cancel edit</button>}
           </div>
         </form>
+        <ConfirmationModal isOpen={showClearModal} onClose={() => setShowClearModal(false)} onConfirm={handleClearForm} title="Clear PO Workspace?" description="This will remove all current form data and reset the purchase order workspace. This action cannot be undone." />
       </Panel>
 
       <Panel id="po-list" title={`PO List (${filtered.length})`} subtitle="Search, filter, sort, view details, edit, and delete purchase orders.">

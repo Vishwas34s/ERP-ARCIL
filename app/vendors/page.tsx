@@ -1,13 +1,14 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
-import { Badge, Panel } from '@/components/ui';
+import { Badge, Panel, ConfirmationModal } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useDemoUser } from '@/lib/auth';
 import { demoData } from '@/lib/data';
+import { usePersistentFormState } from '@/lib/form-store';
 import { approvalLevelFor, useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { FileCheck2, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { FileCheck2, Plus, RefreshCw, RotateCcw, Save, Trash2 } from 'lucide-react';
 
 type Draft = Pick<WorkflowItem, 'vendorName' | 'poNumber' | 'poAmount' | 'poQty' | 'grnNumber' | 'grnQty' | 'challanNumber' | 'invoiceNumber' | 'invoiceDate' | 'invoiceAmount' | 'gstAmount' | 'matchStatus' | 'paymentMode'>;
 
@@ -104,10 +105,10 @@ export default function VendorsPage() {
   const { items, add, update, remove, reset } = useWorkflowItems();
   const toast = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const [adminVendor, setAdminVendor] = useState<AdminVendorDraft>(emptyAdminVendor);
+  const [draft, setDraft, clearWorkflowDraft] = usePersistentFormState<Draft>('vendor-workflow-draft', emptyDraft);
+  const [adminVendor, setAdminVendor, clearAdminDraft] = usePersistentFormState<AdminVendorDraft>('admin-vendor-draft', emptyAdminVendor);
   const [createdVendors, setCreatedVendors] = useState<AdminVendor[]>(() => readAdminVendors());
-  const isVendor = false;
+  const isVendor = user.key === 'vendor';
   const isAdmin = user.key === 'admin';
   const rows = useMemo(() => items, [items]);
   const latestDirectory = useMemo(() => demoData.vendors.slice(0, 8), []);
@@ -141,7 +142,7 @@ export default function VendorsPage() {
       toast({ type: 'success', title: 'Record Added Successfully', description: `${draft.invoiceNumber || 'Invoice'} is ready for matching and approval.` });
     }
     setEditingId(null);
-    setDraft(emptyDraft);
+    clearWorkflowDraft();
   }
 
   function submitAdminVendor(event: FormEvent) {
@@ -167,7 +168,7 @@ export default function VendorsPage() {
     const nextVendors = [nextVendor, ...createdVendors];
     window.localStorage.setItem(adminVendorKey, JSON.stringify(nextVendors));
     setCreatedVendors(nextVendors);
-    setAdminVendor(emptyAdminVendor);
+    clearAdminDraft();
     toast({ type: 'success', title: 'Vendor Added Successfully', description: `${nextVendor.displayName || nextVendor.legalName} is ready for KYC review.` });
   }
 
@@ -179,6 +180,19 @@ export default function VendorsPage() {
   function resetRecords() {
     reset();
     toast({ type: 'info', title: 'Dummy Data Reset', description: 'Workflow data was restored to the default demo records.' });
+  }
+
+  function handleClearAdminForm() {
+    clearAdminDraft();
+    toast({ type: 'info', title: 'Form Cleared', description: 'Admin vendor fields have been reset.' });
+  }
+
+  function handleClearOperationalForm() {
+    clearWorkflowDraft();
+    if (editingId) {
+      setEditingId(null);
+    }
+    toast({ type: 'info', title: 'Form Cleared', description: 'Operational record fields have been reset.' });
   }
 
   return (
@@ -211,8 +225,12 @@ export default function VendorsPage() {
             <Field label="Aadhaar card document" value={adminVendor.aadhaarCardDocument} onChange={(value) => setAdminVendor((current) => ({ ...current, aadhaarCardDocument: value }))} />
             <Field label="GST certificate document" value={adminVendor.gstCertificateDocument} onChange={(value) => setAdminVendor((current) => ({ ...current, gstCertificateDocument: value }))} />
             <Field label="Cancelled cheque document" value={adminVendor.cancelledChequeDocument} onChange={(value) => setAdminVendor((current) => ({ ...current, cancelledChequeDocument: value }))} />
-            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 md:self-end"><FileCheck2 size={16} /> Add vendor</button>
+            <div className="flex gap-2 md:col-span-3 xl:col-span-4 md:justify-end">
+              <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"><FileCheck2 size={16} /> Add vendor</button>
+              <button type="button" onClick={() => setShowAdminClearModal(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300"><RotateCcw size={16} /> Clear</button>
+            </div>
           </form>
+          <ConfirmationModal isOpen={showAdminClearModal} onClose={() => setShowAdminClearModal(false)} onConfirm={handleClearAdminForm} title="Reset Vendor Onboarding?" description="This will clear all KYC documents and supplier details from the onboarding form." />
         </Panel>
       )}
 
@@ -230,7 +248,19 @@ export default function VendorsPage() {
         </Panel>
       )}
 
-      
+      {isVendor && (
+        <Panel title={editingId ? 'Update submitted record' : 'Create PO, GRN, and invoice record'} subtitle="The invoice amount automatically decides L1, L2, or L3 approval routing.">
+          <form onSubmit={submit} className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+            {[
+              ['Vendor name', 'vendorName'], ['PO number', 'poNumber'], ['PO amount', 'poAmount'], ['PO qty', 'poQty'], ['GRN number', 'grnNumber'], ['GRN qty', 'grnQty'], ['Delivery challan', 'challanNumber'], ['Invoice number', 'invoiceNumber'], ['Invoice date', 'invoiceDate'], ['Invoice amount', 'invoiceAmount'], ['GST amount', 'gstAmount'],
+            ].map(([label, key]) => <label key={key} className="text-sm text-slate-300">{label}<input required value={String(draft[key as keyof Draft])} type={key.includes('Amount') || key.includes('Qty') || key === 'gstAmount' || key === 'poAmount' || key === 'invoiceAmount' ? 'number' : key === 'invoiceDate' ? 'date' : 'text'} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.type === 'number' ? Number(event.target.value) : event.target.value }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30" /></label>)}
+            <label className="text-sm text-slate-300">Match status<select value={draft.matchStatus} onChange={(event) => setDraft((current) => ({ ...current, matchStatus: event.target.value as Draft['matchStatus'] }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none"><option>Matched</option><option>Variance</option><option>Pending</option></select></label>
+            <label className="text-sm text-slate-300">Payment mode<select value={draft.paymentMode} onChange={(event) => setDraft((current) => ({ ...current, paymentMode: event.target.value as Draft['paymentMode'] }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none"><option>RTGS</option><option>NEFT</option><option>Cheque</option><option>UPI</option></select></label>
+            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 md:self-end"><Save size={16} /> {editingId ? 'Update' : 'Add record'}</button>
+          </form>
+        </Panel>
+      )}
+
       <Panel title="Submitted operational data" subtitle="This is the shared source for PO, GRN, invoice, approvals, and payments.">
         <div className="overflow-auto">
           <table className="min-w-[1250px] w-full border-separate border-spacing-0 text-left text-sm">

@@ -5,13 +5,18 @@ export type WorkflowStatus = 'Submitted' | 'Approved' | 'Rejected' | 'On Hold' |
 
 export type WorkflowItem = {
   id: string;
+  vendorId?: string;
   vendorName: string;
+  vendorGstin?: string;
+  poId?: string;
   poNumber: string;
   poAmount: number;
   poQty: number;
+  grnId?: string;
   grnNumber: string;
   grnQty: number;
   challanNumber: string;
+  invoiceId?: string;
   invoiceNumber: string;
   invoiceDate: string;
   invoiceAmount: number;

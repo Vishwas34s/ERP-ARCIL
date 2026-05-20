@@ -1,3 +1,4 @@
+import type { PurchaseOrder, Vendor } from './types';
 import type { WorkflowItem } from './workflow-store';
 
 export type MatchStatusLabel = 'Matched' | 'Variance Detected';
@@ -34,6 +35,8 @@ export type InvoiceValidationResult = {
   status: MatchStatusLabel;
   variances: VarianceDetail[];
   poSource?: WorkflowItem;
+  poOrder?: PurchaseOrder;
+  vendorReference?: Vendor;
   grnSource?: WorkflowItem;
 };
 
@@ -79,7 +82,7 @@ export function evaluateWorkflowMatch(item: WorkflowItem): { status: MatchStatus
   return { status: variances.length ? 'Variance Detected' : 'Matched', variances };
 }
 
-export function validateManualInvoice(draft: ManualInvoiceDraft, records: WorkflowItem[], existingInvoiceNumbers: string[] = [], vendors: import('./types').Vendor[] = []): InvoiceValidationResult {
+export function validateManualInvoice(draft: ManualInvoiceDraft, records: WorkflowItem[], existingInvoiceNumbers: string[] = []): InvoiceValidationResult {
   const errors: string[] = [];
   const variances: VarianceDetail[] = [];
   const required: Array<[keyof ManualInvoiceDraft, string]> = [
@@ -126,10 +129,14 @@ export function validateManualInvoice(draft: ManualInvoiceDraft, records: Workfl
     }
   }
 
+  const vendorReference = vendors.find((vendor) => sameText(vendor.displayName, draft.vendorName) || sameText(vendor.legalName, draft.vendorName) || sameText(vendor.gstin, draft.vendorGstin));
+  const poOrder = purchaseOrders.find((order) => sameText(order.poNumber, draft.poNumber));
   const poSource = records.find((item) => sameText(item.poNumber, draft.poNumber));
-  const grnSource = records.find((item) => sameText(item.grnNumber, draft.grnNumber) || sameText(item.challanNumber, draft.grnNumber) || sameText(item.challanNumber, draft.challanNumber));
+  const grnSource = records.find(
+    (item) => sameText(item.grnNumber, draft.grnNumber) || sameText(item.challanNumber, draft.grnNumber) || sameText(item.challanNumber, draft.challanNumber),
+  );
 
-  if (!poSource) {
+  if (!poOrder) {
     variances.push({ field: 'PO Reference', expected: 'Existing PO record', actual: draft.poNumber || 'Missing', severity: 'critical' });
   }
 
@@ -137,12 +144,16 @@ export function validateManualInvoice(draft: ManualInvoiceDraft, records: Workfl
     variances.push({ field: 'GRN Reference', expected: 'Existing GRN or delivery challan', actual: draft.grnNumber || draft.challanNumber || 'Missing', severity: 'critical' });
   }
 
-  if (poSource && !sameText(poSource.vendorName, draft.vendorName)) {
-    variances.push({ field: 'Vendor', expected: poSource.vendorName, actual: draft.vendorName, severity: 'critical' });
+  if (poOrder && !sameText(poOrder.vendorName, draft.vendorName) && draft.vendorName.trim()) {
+    variances.push({ field: 'Vendor', expected: poOrder.vendorName, actual: draft.vendorName, severity: 'critical' });
   }
 
-  if (poSource && poSource.poQty !== draft.quantity) {
-    variances.push({ field: 'Quantity', expected: `PO qty ${poSource.poQty}`, actual: `Invoice qty ${formatNumber(draft.quantity)}`, severity: 'critical' });
+  if (vendorReference && poOrder && poOrder.vendorId !== vendorReference.id) {
+    variances.push({ field: 'Vendor', expected: vendorReference.displayName, actual: draft.vendorName, severity: 'critical' });
+  }
+
+  if (poOrder && poOrder.items.reduce((sum, item) => sum + item.quantityOrdered, 0) !== draft.quantity) {
+    variances.push({ field: 'Quantity', expected: `PO qty ${poOrder.items.reduce((sum, item) => sum + item.quantityOrdered, 0)}`, actual: `Invoice qty ${formatNumber(draft.quantity)}`, severity: 'critical' });
   }
 
   if (grnSource && grnSource.grnQty !== draft.quantity) {
@@ -174,6 +185,8 @@ export function validateManualInvoice(draft: ManualInvoiceDraft, records: Workfl
     status: variances.length ? 'Variance Detected' : 'Matched',
     variances,
     poSource,
+    poOrder,
+    vendorReference,
     grnSource,
   };
 }

@@ -4,16 +4,23 @@ import { useMemo, useState } from 'react';
 import { demoData } from '@/lib/data';
 import { Badge, Panel } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { Search, RefreshCw, ShieldCheck, ChevronRight } from 'lucide-react';
+import { useAuditTrail } from '@/lib/audit-store';
+import { Search, RefreshCw, ShieldCheck, ChevronRight, FilterX } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
 export default function AuditPage() {
-  const rows = demoData.audit;
+  const { records: rows } = useAuditTrail();
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
-  const [selected, setSelected] = useState(rows[0]);
+  const [selected, setSelected] = useState(rows[0] ?? demoData.audit[0]);
   const filtered = useMemo(() => rows.filter((row) => JSON.stringify(row).toLowerCase().includes(query.toLowerCase()) && (filter === 'All' || row.module === filter || row.outcome === filter || row.severity === filter)), [query, filter, rows]);
+
+  function clearFilters() {
+    setQuery('');
+    setFilter('All');
+    toast({ type: 'info', title: 'Filters Reset', description: 'Showing all audit logs.' });
+  }
 
   return (
     <div className="space-y-6">
@@ -21,7 +28,10 @@ export default function AuditPage() {
         <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] lg:items-center">
           <div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search action, actor, role, module, source system, compliance ref..." className="w-full rounded-lg border border-white/10 bg-slate-950/50 py-3 pl-11 pr-4 text-sm outline-none placeholder:text-slate-500 focus:border-cyan-400/30" /></div>
           <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none"><option>All</option><option>Vendor</option><option>Invoice</option><option>Matching</option><option>Approval</option><option>Payment</option><option>Audit</option><option>Success</option><option>Warning</option><option>Failure</option></select>
-          <button onClick={() => toast({ type: 'info', title: 'Audit Export Queued', description: `${filtered.length} filtered audit records are ready for review.` })} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/10"><RefreshCw size={16} /> Export logs</button>
+          <div className="flex gap-2">
+            <button onClick={clearFilters} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/10"><FilterX size={16} /> Clear</button>
+            <button onClick={() => toast({ type: 'info', title: 'Audit Export Queued', description: `${filtered.length} filtered audit records are ready for review.` })} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/10"><RefreshCw size={16} /> Export logs</button>
+          </div>
         </div>
       </Panel>
 

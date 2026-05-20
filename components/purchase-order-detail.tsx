@@ -5,6 +5,7 @@ import { formatDate, money } from '@/lib/utils';
 import { statusTone } from '@/lib/purchase-orders';
 import type { PurchaseOrder } from '@/lib/types';
 import { InvoiceSummarySheet } from '@/components/invoice-summary-sheet';
+import { Download, Printer } from 'lucide-react';
 
 function DetailBlock({ label, value }: { label: string; value: string }) {
   return (

@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Panel } from '@/components/ui';
+import { Badge, Panel, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useDemoUser } from '@/lib/auth';
 import { demoData } from '@/lib/data';
@@ -10,9 +10,10 @@ import { createEmptyLineItem, normalizePurchaseOrder, statusTone, validatePurcha
 import { newPurchaseOrderDraft, usePurchaseOrders } from '@/lib/purchase-order-store';
 import { money } from '@/lib/utils';
 import type { PurchaseOrder, PurchaseOrderLineItem, Vendor } from '@/lib/types';
-import { CheckCircle2, Eye, FileDown, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, Eye, FileDown, FileText, ListChecks, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, Upload, XCircle } from 'lucide-react';
 
 type FieldErrors = Partial<Record<keyof PurchaseOrder | 'items', string>>;
+type PurchaseOrderView = 'create' | 'list';
 
 const statusOptions: PurchaseOrder['status'][] = ['Draft', 'Issued', 'Approved', 'Partially Received', 'Closed', 'Cancelled'];
 const paymentTermOptions = ['Net 30', 'Net 45', 'Advance Payment', 'Partial Payment'];
@@ -116,7 +117,9 @@ export default function PurchaseOrdersPage() {
   const user = useDemoUser();
   const toast = useToast();
   const { items, save, remove, reset } = usePurchaseOrders();
+  const [activeView, setActiveView] = useState<PurchaseOrderView>('create');
   const [draft, setDraft] = useState<PurchaseOrder>(() => emptyDraft());
+  const [poUploadFile, setPoUploadFile] = useState('');
   const [editingId, setEditingId] = useState<string | undefined>();
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -190,6 +193,16 @@ export default function PurchaseOrdersPage() {
     });
   }
 
+  function handlePoUpload(fileName?: string) {
+    if (!fileName) return;
+    setPoUploadFile(fileName);
+    patchDraft({
+      remarks: [draft.remarks, `Source PO uploaded: ${fileName}`].filter(Boolean).join(' | '),
+      status: draft.status === 'Draft' ? 'Issued' : draft.status,
+    });
+    toast({ type: 'info', title: 'PO attached', description: `${fileName} is linked to this purchase order draft.` });
+  }
+
   function validateDraft() {
     const result = validatePurchaseOrder(draft, items, editingId);
     setErrors(result.errors);
@@ -222,6 +235,8 @@ export default function PurchaseOrdersPage() {
     });
     setDraft(emptyDraft());
     setEditingId(undefined);
+    setPoUploadFile('');
+    setActiveView('list');
     setErrors([]);
     setFieldErrors({});
   }
@@ -229,6 +244,7 @@ export default function PurchaseOrdersPage() {
   function edit(po: PurchaseOrder) {
     setEditingId(po.id);
     setDraft(cloneDraft(po));
+    setActiveView('create');
     setErrors([]);
     setFieldErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -243,6 +259,7 @@ export default function PurchaseOrdersPage() {
     reset();
     setDraft(emptyDraft());
     setEditingId(undefined);
+    setPoUploadFile('');
     setErrors([]);
     setFieldErrors({});
     toast({ type: 'info', title: 'PO Data Reset', description: 'Purchase orders were restored to seeded records.' });
@@ -250,22 +267,43 @@ export default function PurchaseOrdersPage() {
 
   return (
     <div className="space-y-5">
-      <Panel title="Purchase Order Management" subtitle="Create, validate, view, edit, and manage purchase orders using the matching-ready PO schema.">
+      <Panel
+        title="Purchase Order Management"
+        subtitle="Create a fresh PO or upload an existing PO document, then manage saved records from a separate register."
+        action={
+          <SegmentedControl
+            value={activeView}
+            onChange={setActiveView}
+            options={[
+              { value: 'create', label: editingId ? 'Edit PO' : 'Create PO', icon: <FileText size={14} /> },
+              { value: 'list', label: 'PO register', icon: <ListChecks size={14} /> },
+            ]}
+          />
+        }
+      >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <InfoMetric label="PO records" value={items.length} />
           <InfoMetric label="Ready for match" value={items.filter((po) => po.matchingStatus === 'Ready for 3-Way Match').length} tone="emerald" />
           <InfoMetric label="Issued or approved" value={items.filter((po) => po.status === 'Issued' || po.status === 'Approved').length} tone="cyan" />
           <InfoMetric label="Total PO value" value={money(totalValue)} tone="amber" />
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <a href="#create-po" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10">Create PO</a>
-          <a href="#po-list" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10">PO List</a>
-          <button onClick={resetData} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10"><RefreshCw size={16} /> Reset PO data</button>
-        </div>
       </Panel>
 
-      <Panel id="create-po" title={editingId ? 'Edit PO' : 'Create PO'} subtitle="Required PO, vendor, buyer, item, pricing, and payment fields are validated before saving.">
+      {activeView === 'create' && <Panel id="create-po" title={editingId ? 'Edit PO' : 'Create PO'} subtitle="Required PO, vendor, buyer, item, pricing, and payment fields are validated before saving.">
         <form onSubmit={submit} className="space-y-5">
+          <div className="rounded-lg border border-dashed border-cyan-400/25 bg-cyan-400/10 p-4">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <div className="text-sm font-semibold text-white">Upload existing PO document</div>
+                <div className="mt-1 text-xs leading-5 text-slate-400">Attach a PDF/image PO from your side, then complete or correct the structured PO fields below for matching.</div>
+                {poUploadFile && <div className="mt-2 text-xs font-semibold text-cyan-200">{poUploadFile}</div>}
+              </div>
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">
+                <Upload size={16} /> Upload PO
+                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(event) => handlePoUpload(event.target.files?.[0]?.name)} />
+              </label>
+            </div>
+          </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
             <Field label="PO Number" value={draft.poNumber} error={fieldErrors.poNumber} onChange={(value) => patchDraft({ poNumber: value })} placeholder="PO-2001" />
             <Field label="PO Date" type="date" value={draft.poDate} error={fieldErrors.poDate} onChange={(value) => patchDraft({ poDate: value })} />
@@ -361,9 +399,14 @@ export default function PurchaseOrdersPage() {
             {editingId && <button type="button" onClick={() => { setEditingId(undefined); setDraft(emptyDraft()); setErrors([]); setFieldErrors({}); }} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"><XCircle size={16} /> Cancel edit</button>}
           </div>
         </form>
-      </Panel>
+      </Panel>}
 
-      <Panel id="po-list" title={`PO List (${filtered.length})`} subtitle="Search, filter, sort, view details, edit, and delete purchase orders.">
+      {activeView === 'list' && <Panel
+        id="po-list"
+        title={`PO register (${filtered.length})`}
+        subtitle="Search, filter, sort, view details, edit, print, export, and delete purchase orders."
+        action={<button onClick={resetData} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"><RefreshCw size={15} />Reset PO data</button>}
+      >
         <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
@@ -444,7 +487,7 @@ export default function PurchaseOrdersPage() {
             </tbody>
           </table>
         </div>
-      </Panel>
+      </Panel>}
     </div>
   );
 }

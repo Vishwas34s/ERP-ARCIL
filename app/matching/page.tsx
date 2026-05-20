@@ -267,7 +267,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
               )}
             </div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <span>3-Way Simultaneous Comparison Workspace</span>
+              <span>3-Way Matching Board</span>
               <Sparkles size={16} className="text-cyan-400 animate-pulse" />
             </h2>
             <p className="text-xs text-slate-400">
@@ -683,7 +683,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
             {result.status === 'Matched' ? (
               <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
                 <CheckCircle2 size={16} />
-                <span>Standard 3-Way Match Verified. Invoice approved for automated sync.</span>
+              <span>Standard 3-way match verified. Invoice can continue to approval routing.</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
@@ -708,7 +708,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
 // ==========================================
 
 export default function MatchingPage() {
-  const { items } = useWorkflowItems();
+  const { items, update } = useWorkflowItems();
   const { items: purchaseOrders } = usePurchaseOrders();
   const toast = useToast();
 
@@ -733,6 +733,16 @@ export default function MatchingPage() {
     setFocusedDoc(focus);
   }
 
+  function markMatched(item: WorkflowItem) {
+    update(item.id, { matchStatus: 'Matched', status: 'Submitted', paymentStatus: 'Not Ready' }, 'Manual 3-Way Match');
+    toast({ type: 'success', title: 'Manual match accepted', description: `${item.invoiceNumber} is ready for approval routing.` });
+  }
+
+  function sendBack(item: WorkflowItem) {
+    update(item.id, { matchStatus: 'Variance', status: 'On Hold', paymentStatus: 'Hold' }, 'Manual 3-Way Match');
+    toast({ type: 'warning', title: 'Variance held', description: `${item.invoiceNumber} is held for AP review before approval routing.` });
+  }
+
   return (
     <div className="space-y-5">
       <Panel
@@ -752,6 +762,33 @@ export default function MatchingPage() {
         </div>
       </Panel>
 
+      <Panel title="AI match board" subtitle="Open the exact document view you need: PO order, GRN/challan, invoice, or a full side-by-side comparison.">
+        <div className="grid gap-3 lg:grid-cols-3">
+          {comparedItems.map(({ item, result }) => (
+            <article key={item.id} className="rounded-lg border border-white/10 bg-slate-950/45 p-4 shadow-glow">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-white">{item.invoiceNumber}</div>
+                  <div className="mt-1 text-xs text-slate-500">{item.vendorName}</div>
+                </div>
+                <Badge tone={matchBadgeTone(result.status)}>{result.status}</Badge>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                <button onClick={() => handleOpenCompare(item, 'po')} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2 py-2 font-semibold text-cyan-200 hover:bg-cyan-400/15"><FileText size={14} className="mx-auto mb-1" />PO</button>
+                <button onClick={() => handleOpenCompare(item, 'grn')} className="rounded-lg border border-amber-400/20 bg-amber-400/10 px-2 py-2 font-semibold text-amber-200 hover:bg-amber-400/15"><Truck size={14} className="mx-auto mb-1" />GRN</button>
+                <button onClick={() => handleOpenCompare(item, 'invoice')} className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2 py-2 font-semibold text-emerald-200 hover:bg-emerald-400/15"><Receipt size={14} className="mx-auto mb-1" />Invoice</button>
+              </div>
+              <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-slate-400">
+                <div className="flex justify-between gap-3"><span>PO</span><strong className="text-slate-200">{item.poNumber} / {money(item.poAmount)}</strong></div>
+                <div className="flex justify-between gap-3"><span>GRN</span><strong className="text-slate-200">{item.grnNumber} / Qty {item.grnQty}</strong></div>
+                <div className="flex justify-between gap-3"><span>Invoice</span><strong className="text-slate-200">{money(item.invoiceAmount)} + GST {money(item.gstAmount)}</strong></div>
+              </div>
+              <button onClick={() => handleOpenCompare(item, 'all')} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-200"><Eye size={14} />Open full comparison</button>
+            </article>
+          ))}
+        </div>
+      </Panel>
+
       <Panel title="PO / GRN / Invoice comparison" subtitle="Status and variance details only. Mismatched fields are highlighted for review.">
         <div className="overflow-auto">
           <table className="min-w-[1220px] w-full border-separate border-spacing-0 text-left text-sm">
@@ -765,6 +802,7 @@ export default function MatchingPage() {
                 <th className="border-b border-white/10 px-3 py-3">Variance details</th>
                 <th className="border-b border-white/10 px-3 py-3">Review</th>
                 <th className="border-b border-white/10 px-3 py-3">Next route</th>
+                <th className="border-b border-white/10 px-3 py-3">Manual action</th>
               </tr>
             </thead>
             <tbody>
@@ -850,40 +888,18 @@ export default function MatchingPage() {
                   
                   {/* Next route level */}
                   <td className="border-b border-white/5 px-3 py-4"><Badge tone={item.approvalLevel === 'L1' ? 'cyan' : item.approvalLevel === 'L2' ? 'violet' : 'amber'}>{item.approvalLevel}</Badge></td>
+                  <td className="border-b border-white/5 px-3 py-4">
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => markMatched(item)} className="rounded-lg bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-200">Accept match</button>
+                      <button onClick={() => sendBack(item)} className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-400/15">Hold variance</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Panel>
-
-      {/* Visual quick cards at the bottom */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        {comparedItems.slice(0, 6).map(({ item, result }) => (
-          <div key={item.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-4 shadow-glow flex flex-col justify-between">
-            <div>
-              <div className="flex items-start justify-between gap-3">
-                <div><div className="font-semibold text-white">{item.invoiceNumber}</div><div className="mt-1 text-xs text-slate-500">{item.vendorName}</div></div>
-                {result.status === 'Matched' ? <CheckCircle2 size={18} className="text-emerald-300" /> : <AlertTriangle size={18} className="text-amber-300" />}
-              </div>
-              <div className="mt-4"><Badge tone={matchBadgeTone(result.status)}>{result.status}</Badge></div>
-              <div className="mt-3 text-sm leading-6 text-slate-400">{result.variances.length ? result.variances.map((variance) => variance.field).join(', ') : 'PO, GRN, and invoice details are consistent.'}</div>
-            </div>
-            
-            {/* Compare Details action */}
-            <div className="mt-4 border-t border-white/5 pt-3 flex justify-between items-center">
-              <button 
-                onClick={() => handleOpenCompare(item, 'all')}
-                className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 transition font-bold"
-              >
-                <Eye size={13} />
-                Simultaneous Comparison
-              </button>
-              <span className="text-[10px] text-slate-500 font-semibold">{item.poNumber} | {item.grnNumber}</span>
-            </div>
-          </div>
-        ))}
-      </div>
 
       {/* RENDER COMPARISON OVERLAY MODAL */}
       {selectedCompareItem && (

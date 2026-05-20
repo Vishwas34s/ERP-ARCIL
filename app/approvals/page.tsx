@@ -136,7 +136,7 @@ export default function ApprovalsPage() {
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<WorkflowItem | null>(null);
-  const isAdmin = user.key === 'admin';
+  const isAdmin = user.key === 'admin' || user.key === 'finance';
   const myRows = useMemo(() => {
     const base = isAdmin ? items : items.filter((item) => item.approvalLevel === user.level);
     return base.filter((item) => JSON.stringify(item).toLowerCase().includes(query.toLowerCase()));
@@ -190,6 +190,7 @@ export default function ApprovalsPage() {
                   <td className="border-b border-white/5 px-3 py-4"><Badge tone={toneForStatus(item.status)}>{item.status}</Badge></td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-400">{item.lastActionBy}</td>
                   <td className="border-b border-white/5 px-3 py-4"><div className="flex flex-wrap gap-2"><button onClick={() => decide(item, 'Approved')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-200"><CheckCircle2 size={14} />Approve</button><button onClick={() => decide(item, 'Rejected')} className="inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"><XCircle size={14} />Reject</button><button onClick={() => decide(item, 'On Hold')} className="inline-flex items-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/15"><PauseCircle size={14} />Hold</button>{item.paymentStatus === 'Ready' && <Link href={`/payments/create?invoiceId=${encodeURIComponent(item.id)}`} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/15"><Wallet size={14} />Pay</Link>}</div></td>
+                  <td className="border-b border-white/5 px-3 py-4"><button onClick={() => setSelected(item)} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-cyan-200 transition hover:bg-white/10" title="View invoice approval detail"><Eye size={15} /></button></td>
                 </tr>
               );
             })}</tbody>

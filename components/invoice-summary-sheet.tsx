@@ -54,9 +54,9 @@ export function InvoiceSummarySheet({ po }: { po: PurchaseOrder }) {
               <tr className="border-b border-white/10">
                 <td className="px-3 py-2">Taxable Amount</td>
                 <td className="px-3 py-2 text-right">{money(po.subtotal, po.currency)}</td>
-                <td className="px-3 py-2 text-right">{money(po.cgst, po.currency)}</td>
-                <td className="px-3 py-2 text-right">{money(po.sgst, po.currency)}</td>
-                <td className="px-3 py-2 text-right">{money(po.igst, po.currency)}</td>
+                <td className="px-3 py-2 text-right">{money(po.cgst ?? 0, po.currency)}</td>
+                <td className="px-3 py-2 text-right">{money(po.sgst ?? 0, po.currency)}</td>
+                <td className="px-3 py-2 text-right">{money(po.igst ?? 0, po.currency)}</td>
                 <td className="px-3 py-2 text-right">{money(po.taxAmount, po.currency)}</td>
               </tr>
               <tr className="border-b border-white/10">

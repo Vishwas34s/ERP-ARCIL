@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-export type DemoRoleKey = 'admin' | 'l1' | 'l2' | 'l3' | 'vendor';
+export type DemoRoleKey = 'admin' | 'finance' | 'l1' | 'l2' | 'l3';
 
 export type DemoUser = {
   key: DemoRoleKey;
@@ -26,7 +26,19 @@ export const demoUsers: DemoUser[] = [
     level: 'Admin',
     title: 'Full P2P operations owner',
     scope: 'Can see all operational data, monitor every phase, execute payments, and complete post-payment processing.',
-    nav: ['/', '/vendors', '/vendor-approvals', '/purchase-orders', '/invoices', '/matching', '/approvals', '/payments', '/audit', '/settings'],
+    nav: ['/', '/vendors', '/vendor-approvals', '/purchase-orders', '/invoices', '/matching', '/approvals', '/payments', '/audit', '/users', '/settings'],
+    accent: 'emerald',
+  },
+  {
+    key: 'finance',
+    name: 'Ananya Rao',
+    email: 'finance.head@procureflow.test',
+    password: 'Finance@2026',
+    role: 'Finance Head',
+    level: 'Finance',
+    title: 'Vendor approvals and payment creation only',
+    scope: 'Can approve vendor onboarding and create payments only after L1, L2, or L3 approval.',
+    nav: ['/', '/vendor-approvals', '/payments'],
     accent: 'emerald',
   },
   {
@@ -58,24 +70,12 @@ export const demoUsers: DemoUser[] = [
     name: 'Meera Nair',
     email: 'l3@procureflow.test',
     password: 'L3@2026',
-    role: 'L3 - Finance Head',
+    role: 'L3 - Senior Approver',
     level: 'L3',
     title: 'Approves invoices above INR 1,00,000',
     scope: 'Can approve, reject, or hold high-value invoices routed to L3 only.',
-    nav: ['/', '/vendor-approvals', '/approvals'],
+    nav: ['/', '/approvals'],
     accent: 'amber',
-  },
-  {
-    key: 'vendor',
-    name: 'Vendor Portal',
-    email: 'vendor@procureflow.test',
-    password: 'Vendor@2026',
-    role: 'Vendor',
-    level: 'Vendor',
-    title: 'Submits PO, GRN, and invoice details',
-    scope: 'Can add, update, and delete PO details, delivery challan/GRN details, and invoice submissions.',
-    nav: ['/', '/vendors', '/purchase-orders', '/invoices', '/matching'],
-    accent: 'rose',
   },
 ];
 
@@ -88,6 +88,10 @@ export function findDemoUser(email: string, password: string) {
   );
 }
 
+export function findDemoUserByKey(key: DemoRoleKey | string) {
+  return demoUsers.find((user) => user.key === key);
+}
+
 export function canAccess(user: DemoUser, path: string) {
   return user.nav.some((entry) => entry === path || (entry !== '/' && path.startsWith(`${entry}/`)));
 }
@@ -97,7 +101,7 @@ export function useDemoUser() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem(storageKey);
-    const nextUser = demoUsers.find((entry) => entry.email === saved);
+    const nextUser = demoUsers.find((entry) => entry.key === saved || entry.email === saved);
     if (nextUser) setUser(nextUser);
   }, []);
 

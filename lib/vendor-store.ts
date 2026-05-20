@@ -76,6 +76,19 @@ function getStoredVendors(): Vendor[] {
     blacklistFlag: 'No',
     kycExpiringInDays: 365,
     supportedDocCount: 4,
+    aadhaarMasked: v.aadhaar ? `XXXX-XXXX-${String(v.aadhaar).slice(-4)}` : '',
+    aadhaarCardStatus: v.aadhaarCardDocument ? 'Verified' : 'Pending',
+    aadhaarCardFile: v.aadhaarCardDocument || '',
+    panCardFile: v.panCardDocument || '',
+    gstCertificateFile: v.gstCertificateDocument || '',
+    cancelledChequeFile: v.cancelledChequeDocument || '',
+    bankProofFile: v.cancelledChequeDocument || '',
+    bankAccountHolder: v.legalName || '',
+    addressLine1: v.addressLine1 || '',
+    pinCode: v.pinCode || '',
+    complianceOwner: 'Finance Head',
+    vendorCategory: v.vendorType || 'Supplier',
+    onboardingStage: 'Finance Review',
   }));
 
   const combined = [...mappedLegacy, ...(vendorsSeed as Vendor[])];
@@ -115,9 +128,16 @@ export function useVendors() {
               status: 'Active',
               approvalStatus: 'Approved',
               blacklistFlag: 'No',
+              documentStatus: 'Verified',
+              gstCertificateStatus: 'Verified',
+              panCardStatus: 'Verified',
+              aadhaarCardStatus: 'Verified',
+              bankProofStatus: 'Verified',
+              cancelledChequeStatus: 'Verified',
               activatedAt: new Date().toISOString().slice(0, 10),
               updatedAt: new Date().toISOString().slice(0, 10),
               remarks: `Approved by ${actor} on ${new Date().toISOString().slice(0, 10)}`,
+              onboardingStage: 'Approved',
             }
           : v
       );
@@ -134,6 +154,7 @@ export function useVendors() {
               blacklistFlag: 'Yes',
               updatedAt: new Date().toISOString().slice(0, 10),
               remarks: `Rejected by ${actor}: ${reason}`,
+              onboardingStage: 'Rejected',
             }
           : v
       );
@@ -170,7 +191,7 @@ export function useVendors() {
         accountNumberMasked: draft.accountNumberMasked || 'XXXXXXXXXX',
         ifsc: draft.ifsc || '',
         bankBranch: draft.bankBranch || 'Main Branch',
-        documentStatus: 'Pending',
+        documentStatus: draft.documentStatus || 'Pending',
         gstCertificateStatus: draft.gstCertificateStatus || 'Pending',
         panCardStatus: draft.panCardStatus || 'Pending',
         bankProofStatus: draft.bankProofStatus || 'Pending',
@@ -189,6 +210,19 @@ export function useVendors() {
         blacklistFlag: 'No',
         kycExpiringInDays: 365,
         supportedDocCount: draft.supportedDocCount || 4,
+        aadhaarMasked: draft.aadhaarMasked || '',
+        aadhaarCardStatus: draft.aadhaarCardStatus || 'Pending',
+        aadhaarCardFile: draft.aadhaarCardFile || '',
+        panCardFile: draft.panCardFile || '',
+        gstCertificateFile: draft.gstCertificateFile || '',
+        cancelledChequeFile: draft.cancelledChequeFile || '',
+        bankProofFile: draft.bankProofFile || '',
+        bankAccountHolder: draft.bankAccountHolder || draft.legalName || '',
+        addressLine1: draft.addressLine1 || '',
+        pinCode: draft.pinCode || '',
+        complianceOwner: draft.complianceOwner || 'Finance Head',
+        vendorCategory: draft.vendorCategory || draft.vendorType || 'Supplier',
+        onboardingStage: draft.onboardingStage || 'Finance Review',
       };
 
       const nextVendors = [nextVendor, ...getStoredVendors()];

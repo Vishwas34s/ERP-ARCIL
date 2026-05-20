@@ -9,7 +9,7 @@ import { useDemoUser } from '@/lib/auth';
 import { usePaymentRecords } from '@/lib/payment-store';
 import { useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { ArrowLeft, Banknote, CheckCircle2, FileText, Save } from 'lucide-react';
+import { ArrowLeft, FileText, Save } from 'lucide-react';
 
 const paymentMethods = ['RTGS', 'NEFT', 'UPI', 'Cheque', 'Manual Bank Transfer'] as const;
 
@@ -88,7 +88,7 @@ function InputField({ label, value, onChange, type = 'text', required = true, he
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none transition focus:border-cyan-400/30"
+        className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none transition focus:border-cyan-400/30"
       />
       {help && <div className="mt-2 text-xs text-slate-500">{help}</div>}
     </label>
@@ -104,8 +104,14 @@ export default function CreatePaymentPage() {
   const { items, update } = useWorkflowItems();
   const { create } = usePaymentRecords();
   const [form, setForm] = useState<PaymentForm>(emptyForm);
-  const selectedItem = useMemo(() => items.find((item) => item.id === invoiceId), [items, invoiceId]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoiceId);
+  const readyItems = useMemo(() => items.filter((item) => item.paymentStatus === 'Ready' || item.status === 'Queued for Payment'), [items]);
+  const selectedItem = useMemo(() => items.find((item) => item.id === selectedInvoiceId), [items, selectedInvoiceId]);
   const existingPending = items.filter((item) => item.paymentStatus === 'Ready' || item.status === 'Queued for Payment').length;
+
+  useEffect(() => {
+    setSelectedInvoiceId(invoiceId);
+  }, [invoiceId]);
 
   useEffect(() => {
     if (selectedItem) {
@@ -123,6 +129,8 @@ export default function CreatePaymentPage() {
         paymentGateway: selectedItem.paymentMode === 'UPI' ? 'NPCI UPI' : selectedItem.paymentMode === 'Manual Bank Transfer' ? 'Bank Transfer' : selectedItem.paymentMode,
         netPaid: selectedItem.invoiceAmount - current.taxDeduction - current.bankCharge,
       }));
+    } else {
+      setForm(emptyForm);
     }
   }, [selectedItem]);
 
@@ -139,6 +147,10 @@ export default function CreatePaymentPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (!selectedItem || (selectedItem.paymentStatus !== 'Ready' && selectedItem.status !== 'Queued for Payment')) {
+      toast({ type: 'error', title: 'Approved invoice required', description: 'Select an invoice approved by L1, L2, or L3 before creating payment.' });
+      return;
+    }
     if (!form.invoiceNumber || !form.vendorName || form.amount <= 0 || !form.paymentMode || !form.bankName || !form.ifsc) {
       toast({ type: 'error', title: 'Missing details', description: 'Complete invoice, vendor, bank, and payment fields before creating the payment.' });
       return;
@@ -187,10 +199,10 @@ export default function CreatePaymentPage() {
 
   return (
     <div className="space-y-5">
-      <Panel title="Create payment instruction" subtitle="Capture payment details for RTGS, NEFT, UPI, Cheque, or manual bank transfer with invoice and vendor linkage.">
+      <Panel title="Create payment instruction" subtitle="Payments can be created only after an invoice is approved by L1, L2, or L3 and is ready for Finance Head payment processing.">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm text-slate-400">{selectedItem ? `Preparing payment for ${selectedItem.invoiceNumber}` : 'Build a new payment instruction from scratch.'}</p>
+            <p className="text-sm text-slate-400">{selectedItem ? `Preparing payment for ${selectedItem.invoiceNumber}` : 'Select an approved invoice to begin.'}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge tone="emerald">{selectedItem ? selectedItem.approvalLevel : 'Payment'}</Badge>
               <Badge tone={selectedItem?.status === 'Queued for Payment' ? 'emerald' : selectedItem?.status === 'Approved' ? 'cyan' : 'slate'}>{selectedItem?.status ?? 'Draft'}</Badge>
@@ -201,8 +213,23 @@ export default function CreatePaymentPage() {
       </Panel>
 
       <form onSubmit={submit} className="space-y-5">
+        <Panel title="Approved invoice selector" subtitle="Choose from invoices already routed through L1, L2, or L3 approval.">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+            <label className="text-sm text-slate-300">
+              Ready invoice
+              <select value={selectedInvoiceId} onChange={(event) => setSelectedInvoiceId(event.target.value)} className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30">
+                <option value="">Select approved invoice</option>
+                {readyItems.map((item) => <option key={item.id} value={item.id}>{item.invoiceNumber} - {item.vendorName} - {money(item.invoiceAmount)}</option>)}
+              </select>
+            </label>
+            <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Ready invoices</div>
+              <div className="mt-2 text-2xl font-semibold text-white">{readyItems.length}</div>
+            </div>
+          </div>
+        </Panel>
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 space-y-4">
+          <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4 space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <InputField label="Invoice number" value={form.invoiceNumber} onChange={(value) => patchForm({ invoiceNumber: value })} required type="text" />
               <InputField label="Vendor name" value={form.vendorName} onChange={(value) => patchForm({ vendorName: value })} required type="text" />
@@ -211,7 +238,7 @@ export default function CreatePaymentPage() {
             <div className="grid gap-3 md:grid-cols-3">
               <label className="text-sm text-slate-300">
                 Payment method
-                <select value={form.paymentMode} onChange={(event) => patchForm({ paymentMode: event.target.value as PaymentMethod })} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30">
+                <select value={form.paymentMode} onChange={(event) => patchForm({ paymentMode: event.target.value as PaymentMethod })} className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30">
                   {paymentMethods.map((method) => <option key={method}>{method}</option>)}
                 </select>
               </label>
@@ -231,8 +258,8 @@ export default function CreatePaymentPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4 space-y-4">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Net payment</div><div className="mt-2 text-2xl font-semibold text-white">{money(form.netPaid)}</div></div>
                 <Badge tone={form.status === 'Pending' ? 'amber' : 'emerald'}>{form.status}</Badge>
@@ -243,15 +270,15 @@ export default function CreatePaymentPage() {
             <InputField label="Payment gateway" value={form.paymentGateway} onChange={(value) => patchForm({ paymentGateway: value })} required type="text" />
             <label className="text-sm text-slate-300">
               Remittance note
-              <textarea value={form.remittanceNote} onChange={(event) => patchForm({ remittanceNote: event.target.value })} className="mt-2 h-28 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/30" />
+              <textarea value={form.remittanceNote} onChange={(event) => patchForm({ remittanceNote: event.target.value })} className="mt-2 h-28 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/30" />
             </label>
             <label className="text-sm text-slate-300">
               Remarks
-              <textarea value={form.remarks} onChange={(event) => patchForm({ remarks: event.target.value })} className="mt-2 h-24 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/30" />
+              <textarea value={form.remarks} onChange={(event) => patchForm({ remarks: event.target.value })} className="mt-2 h-24 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/30" />
             </label>
             <div className="flex flex-wrap gap-3">
-              <button type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"><Save size={16} /> Save payment</button>
-              <Link href="/payments" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/10"><FileText size={16} /> Cancel</Link>
+              <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"><Save size={16} /> Save payment</button>
+              <Link href="/payments" className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/10"><FileText size={16} /> Cancel</Link>
             </div>
           </div>
         </div>
@@ -259,9 +286,9 @@ export default function CreatePaymentPage() {
 
       <Panel title="Payment readiness" subtitle="Payments created from approved invoices retain strong linkage to the original AP workflow.">
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Workflow items ready</div><div className="mt-2 text-2xl font-semibold text-white">{existingPending}</div></div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Selected invoice</div><div className="mt-2 text-2xl font-semibold text-white">{selectedItem?.invoiceNumber ?? 'None'}</div></div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Vendor</div><div className="mt-2 text-2xl font-semibold text-white">{selectedItem?.vendorName ?? 'Manual entry'}</div></div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Workflow items ready</div><div className="mt-2 text-2xl font-semibold text-white">{existingPending}</div></div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Selected invoice</div><div className="mt-2 text-2xl font-semibold text-white">{selectedItem?.invoiceNumber ?? 'None'}</div></div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4"><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Vendor</div><div className="mt-2 text-2xl font-semibold text-white">{selectedItem?.vendorName ?? 'Choose invoice'}</div></div>
         </div>
       </Panel>
     </div>

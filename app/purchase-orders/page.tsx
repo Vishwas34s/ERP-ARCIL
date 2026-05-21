@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+
 import Link from 'next/link';
 import { Badge, Panel, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/components/toast';
@@ -11,6 +12,8 @@ import { newPurchaseOrderDraft, usePurchaseOrders } from '@/lib/purchase-order-s
 import { money } from '@/lib/utils';
 import type { PurchaseOrder, PurchaseOrderLineItem, Vendor } from '@/lib/types';
 import { CheckCircle2, Eye, FileText, ListChecks, Pencil, Plus, RefreshCw, Save, Search, Trash2, Upload, XCircle } from 'lucide-react';
+import { clearDraft, readDraft, useFormDraftAutoSave, writeDraft } from '@/lib/form-draft-store';
+
 
 type FieldErrors = Partial<Record<keyof PurchaseOrder | 'items', string>>;
 type PurchaseOrderView = 'create' | 'list';
@@ -121,6 +124,11 @@ export default function PurchaseOrdersPage() {
   const [draft, setDraft] = useState<PurchaseOrder>(() => emptyDraft());
   const [poUploadFile, setPoUploadFile] = useState('');
   const [editingId, setEditingId] = useState<string | undefined>();
+  const draftAutoSaveKey = useMemo(() => {
+    const modePart = editingId ? `edit:${editingId}` : 'create';
+    return `po:auto-save:${modePart}`;
+  }, [editingId]);
+
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [query, setQuery] = useState('');
@@ -131,7 +139,27 @@ export default function PurchaseOrdersPage() {
   const normalizedDraft = useMemo(() => normalizePurchaseOrder(draft), [draft]);
   const totalValue = useMemo(() => items.reduce((sum, po) => sum + po.finalTotalAmount, 0), [items]);
 
+  useEffect(() => {
+    // Restore auto-saved PO form state when returning to this page.
+    // We restore the 'create' bucket by default (edits have their own key).
+    const createSaved = readDraft<{
+      draft: PurchaseOrder;
+      poUploadFile: string;
+      editingId?: string;
+    }>('po:auto-save:create');
+
+
+    if (!createSaved) return;
+
+    if (createSaved.editingId) setEditingId(createSaved.editingId);
+    setDraft(createSaved.draft);
+    setPoUploadFile(createSaved.poUploadFile || '');
+    setActiveView('create');
+  }, []);
+
+
   const filtered = useMemo(() => {
+
     const search = query.trim().toLowerCase();
     const searched = items.filter((po) => {
       const matchesSearch = !search || JSON.stringify(po).toLowerCase().includes(search);
@@ -147,9 +175,22 @@ export default function PurchaseOrdersPage() {
     });
   }, [items, query, sort, statusFilter]);
 
+
   function patchDraft(patch: Partial<PurchaseOrder>) {
     setDraft((current) => ({ ...current, ...patch }));
   }
+
+  useEffect(() => {
+    // Persist PO draft in the background so navigation doesn't wipe entered values.
+    // Only saves in the create view (including edit mode when editingId is set).
+    writeDraft(draftAutoSaveKey, {
+
+      draft,
+      poUploadFile,
+      editingId,
+    });
+  }, [draftAutoSaveKey, draft, poUploadFile, editingId]);
+
 
   function updateLine(id: string, patch: Partial<PurchaseOrderLineItem>) {
     setDraft((current) => ({
@@ -233,6 +274,10 @@ export default function PurchaseOrdersPage() {
       title: editingId ? 'PO Updated' : 'PO Created',
       description: `${response.item.poNumber} is stored with matching-ready quantity, price, GST, and terms fields.`,
     });
+    clearDraft(draftAutoSaveKey);
+    // Also clear generic create bucket to avoid stale restores.
+    clearDraft('po:auto-save:create');
+
     setDraft(emptyDraft());
     setEditingId(undefined);
     setPoUploadFile('');
@@ -241,10 +286,16 @@ export default function PurchaseOrdersPage() {
     setFieldErrors({});
   }
 
+
   function edit(po: PurchaseOrder) {
+    // Start edit mode with fresh state from selected PO.
+    clearDraft(draftAutoSaveKey);
+    clearDraft('po:auto-save:create');
+
     setEditingId(po.id);
     setDraft(cloneDraft(po));
     setActiveView('create');
+
     setErrors([]);
     setFieldErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });

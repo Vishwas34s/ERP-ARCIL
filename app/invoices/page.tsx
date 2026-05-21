@@ -1,11 +1,14 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+
 import { Badge, MetricCard, Panel, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useVendors } from '@/lib/vendor-store';
 import { useDemoUser } from '@/lib/auth';
 import { matchBadgeTone, validateManualInvoice, type InvoiceValidationResult, type ManualInvoiceDraft } from '@/lib/matching';
+import { clearDraft, readDraft, useFormDraftAutoSave, writeDraft } from '@/lib/form-draft-store';
+
 import { approvalLevelFor, useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
 import { AlertTriangle, CheckCircle2, Download, Eye, FileImage, FileText, ListChecks, RotateCcw, Save, Search, Upload, X, XCircle } from 'lucide-react';
@@ -460,6 +463,8 @@ export default function InvoicesPage() {
   const [activeView, setActiveView] = useState<InvoiceView>('create');
   const [mode, setMode] = useState<IntakeMode>('OCR');
   const [draft, setDraft] = useState<InvoiceDraft>(defaultDraft);
+  const invoiceDraftKey = useMemo(() => `invoice:auto-save:create`, []);
+
   const [result, setResult] = useState<InvoiceValidationResult | null>(null);
   const [ocrDiscrepancies, setOcrDiscrepancies] = useState<string[]>([]);
   const [query, setQuery] = useState('');
@@ -477,7 +482,32 @@ export default function InvoicesPage() {
   })), [items]);
   const todayRows = rows.filter((row) => row.arrivalDate === today);
 
+  useEffect(() => {
+    // Restore auto-saved invoice form state.
+    const saved = readDraft<{
+      draft: InvoiceDraft;
+      activeView: InvoiceView;
+      mode: IntakeMode;
+      ocrDiscrepancies: string[];
+    }>(invoiceDraftKey);
+
+    if (!saved) return;
+
+    setDraft(saved.draft);
+    setActiveView(saved.activeView);
+    setMode(saved.mode);
+    setOcrDiscrepancies(saved.ocrDiscrepancies ?? []);
+  }, [invoiceDraftKey]);
+
+  useFormDraftAutoSave({
+    draftKey: invoiceDraftKey,
+    enabled: true,
+    debounceMs: 450,
+    draft: { draft, activeView, mode, ocrDiscrepancies },
+  });
+
   const filteredRows = useMemo(() => {
+
     const q = query.trim().toLowerCase();
     return rows.filter((row) => {
       const byStatus = statusFilter === 'All' || row.status === statusFilter || row.matchStatus === statusFilter || row.paymentStatus === statusFilter;
@@ -617,10 +647,13 @@ export default function InvoicesPage() {
       title: validation.status === 'Matched' ? 'Invoice sent to approval' : 'Invoice held for discrepancy',
       description: `${draft.invoiceNumber} is synced across invoice, matching, approval, and payment pages.`,
     });
+    clearDraft(invoiceDraftKey);
+
     setDraft(defaultDraft);
     setResult(null);
     setOcrDiscrepancies([]);
     setActiveView('register');
+
   }
 
   function flagException() {

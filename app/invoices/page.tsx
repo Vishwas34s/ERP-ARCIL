@@ -21,6 +21,10 @@ type InvoiceView = 'create' | 'register';
 
 type InvoiceDraft = {
   vendorId: string;
+  grnReference: string;
+  grnDate: string;
+  deliveryChallanNumber: string;
+  deliveryChallanDate: string;
   [key: string]: string;
 };
 
@@ -30,6 +34,7 @@ type FieldDef = {
   type?: string;
   required?: boolean;
   options?: string[];
+  derived?: boolean;
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -79,10 +84,10 @@ const invoiceGroups: Array<{ title: string; fields: FieldDef[] }> = [
     fields: [
       { key: 'poNumber', label: 'PO Number' },
       { key: 'poDate', label: 'PO Date', type: 'date', required: false },
-      { key: 'grnNumber', label: 'GRN Number', derived: true },
-      { key: 'grnDate', label: 'GRN Date', type: 'date', required: false, derived: true },
-      { key: 'challanNumber', label: 'Challan Number', derived: true },
-      { key: 'challanDate', label: 'Challan Date', type: 'date', required: false, derived: true },
+      { key: 'grnReference', label: 'GRN Reference', derived: true },
+      { key: 'grnDate', label: 'GRN Date', type: 'date', derived: true, required: false },
+      { key: 'deliveryChallanNumber', label: 'Delivery Challan Number', derived: true },
+      { key: 'deliveryChallanDate', label: 'Delivery Challan Date', type: 'date', derived: true, required: false },
       { key: 'department', label: 'Department' },
       { key: 'costCenter', label: 'Cost center' },
     ],
@@ -154,8 +159,10 @@ const defaultDraft: InvoiceDraft = {
   currency: 'INR',
   poNumber: '',
   poDate: '',
-  grnNumber: '',
+  grnReference: '',
   grnDate: '',
+  deliveryChallanNumber: '',
+  deliveryChallanDate: '',
   department: 'Operations',
   costCenter: 'CC-AP-001',
   lineItemCode: 'ITEM-001',
@@ -276,8 +283,10 @@ function deriveDraftFromPurchaseOrder(draft: InvoiceDraft, po: PurchaseOrder, go
     igstAmount: '0',
     grossAmount: String(po.finalTotalAmount),
     poDate: po.poDate,
-    grnNumber: grn?.grnNumber || draft.grnNumber,
-    grnDate: grn?.grnDate || draft.grnDate,
+    grnReference: grn?.grnNumber || po.grnReference || draft.grnReference,
+    grnDate: grn?.grnDate || po.grnDate || draft.grnDate,
+    deliveryChallanNumber: grn?.deliveryChallanNumber || po.deliveryChallanNumber || draft.deliveryChallanNumber,
+    deliveryChallanDate: grn?.deliveryChallanDate || po.deliveryChallanDate || draft.deliveryChallanDate,
     quantity: String(resolvedQuantity),
   };
 }
@@ -314,8 +323,10 @@ function toManualDraft(draft: InvoiceDraft): ManualInvoiceDraft {
     gstInformation: `GST ${draft.gstRate}%`,
     gstRate: numberValue(draft.gstRate),
     poNumber: draft.poNumber,
-    grnNumber: draft.grnNumber,
+    grnReference: draft.grnReference,
     grnDate: draft.grnDate,
+    deliveryChallanNumber: draft.deliveryChallanNumber,
+    deliveryChallanDate: draft.deliveryChallanDate,
     itemDetails: draft.itemDescription,
     quantity: numberValue(draft.quantity),
     price: numberValue(draft.unitPrice),
@@ -361,7 +372,6 @@ function Field({ field, value, onChange, error }: { field: FieldDef; value: stri
         <datalist id={datalistId}>
           {field.options.map((option) => <option key={option} value={option} />)}
         </datalist>
-        {field.derived && <div className="mt-1 text-[10px] text-slate-500 italic">Auto-filled from workflow linkage</div>}
         {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
       </label>
     );
@@ -374,7 +384,6 @@ function Field({ field, value, onChange, error }: { field: FieldDef; value: stri
         <select disabled={field.derived} value={value} onChange={(event) => onChange(event.target.value)} className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}>
           {field.options.map((option) => <option key={option}>{option}</option>)}
         </select>
-        {field.derived && <div className="mt-1 text-[10px] text-slate-500 italic">Auto-filled from workflow linkage</div>}
         {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
       </label>
     );
@@ -391,7 +400,6 @@ function Field({ field, value, onChange, error }: { field: FieldDef; value: stri
         onChange={(event) => onChange(event.target.value)}
         className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}
       />
-      {field.derived && <div className="mt-1 text-[10px] text-slate-500 italic">Auto-filled from workflow linkage</div>}
       {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
     </label>
   );
@@ -479,7 +487,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
     ifsc: draft.ifsc,
     account: draft.bankAccountMasked,
     poNumber: draft.poNumber,
-    grnNumber: draft.grnNumber,
     itemDescription: draft.itemDescription,
     quantity: numberValue(draft.quantity),
     unitPrice: numberValue(draft.unitPrice),
@@ -498,7 +505,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
     ifsc: '',
     account: '',
     poNumber: item?.poNumber || '',
-    grnNumber: item?.grnNumber || '',
     itemDescription: 'Goods / service as per PO',
     quantity: item?.grnQty || 0,
     unitPrice: item && item.grnQty ? item.invoiceAmount / item.grnQty : 0,
@@ -518,7 +524,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
         ['Invoice date', invoice.invoiceDate],
         ['Vendor name', invoice.vendorName],
         ['PO reference number', invoice.poNumber],
-        ['GRN reference number', invoice.grnNumber],
         ['Quantity', invoice.quantity],
         ['Unit price', money(invoice.unitPrice)],
         ['Taxable amount', money(invoice.taxableAmount)],
@@ -580,7 +585,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
             <tr><th>GST</th><td class="right">${money(invoice.gst)}</td></tr>
             <tr><th>Gross total</th><td class="right"><strong>${money(invoice.gross)}</strong></td></tr>
           </table>
-          <p>GRN: ${invoice.grnNumber}</p>
           ${fullFieldRows}
         </body>
       </html>
@@ -619,7 +623,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
                 <tbody><tr><td className="border border-slate-200 p-2">{invoice.itemDescription}</td><td className="border border-slate-200 p-2 text-right">{invoice.quantity}</td><td className="border border-slate-200 p-2 text-right">{money(invoice.unitPrice)}</td><td className="border border-slate-200 p-2 text-right">{money(invoice.taxableAmount)}</td><td className="border border-slate-200 p-2 text-right">{money(invoice.gst)}</td><td className="border border-slate-200 p-2 text-right font-bold">{money(invoice.gross)}</td></tr></tbody>
               </table>
             </div>
-            <div className="mt-5 text-sm">GRN: {invoice.grnNumber}</div>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               {detailGroups.map((group) => (
                 <section key={group.title} className="rounded border border-slate-200 p-3">
@@ -747,24 +750,20 @@ export default function InvoicesPage() {
     if (key === 'poNumber') {
       // Clear GRN related fields if PO is cleared or not found
       if (!rawValue) {
-        nextDraft = { ...nextDraft, grnNumber: '', grnDate: '', challanNumber: '', challanDate: '' };
+        nextDraft = { ...nextDraft, grnReference: '', grnDate: '', deliveryChallanNumber: '', deliveryChallanDate: '' };
       }
 
       const po = findPurchaseOrder(purchaseOrders, rawValue);
       if (po) {
-        const grn = goodsReceipts.find(g => normalizeKey(g.poNumber) === normalizeKey(po.poNumber));
-        
         // Auto-fill all PO and linked GRN data
         nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po, goodsReceipts);
         
         // Auto-fill vendor details from PO's vendor reference
         const vendor = vendors.find(v => v.id === po.vendorId || v.vendorCode === po.vendorReferenceId) || findVendor(vendors, po.vendorName);
         if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor);
-        
+
         // Recalculate totals after all fields are updated
         Object.assign(nextDraft, calculateAutoTotals(nextDraft));
-      } else {
-        setGrnWarning(null);
       }
     }
 
@@ -774,7 +773,7 @@ export default function InvoicesPage() {
 
     setDraft(nextDraft);
     setFieldErrors({});
-    if (['vendorName', 'poNumber', 'grnNumber', 'quantity', 'unitPrice', 'gstRate'].includes(key)) {
+    if (['vendorName', 'poNumber', 'grnReference', 'quantity', 'unitPrice', 'gstRate'].includes(key)) {
       setResult(evaluateDraft(nextDraft, items, vendors, purchaseOrders, goodsReceipts));
     }
   }
@@ -804,10 +803,10 @@ export default function InvoicesPage() {
       beneficiaryName: vendor?.displayName || vendor?.legalName || 'Aster Distributor',
       poNumber: 'PO-1002',
       poDate: today,
-      grnNumber: 'GRN-5002',
+      grnReference: 'GRN-5002',
       grnDate: today,
-      challanNumber: 'DC-7002',
-      challanDate: today,
+      deliveryChallanNumber: 'DC-7002',
+      deliveryChallanDate: today,
       itemDescription: 'Implementation consulting sprint',
       quantity: '4',
       unitPrice: '17000',
@@ -845,21 +844,20 @@ export default function InvoicesPage() {
     setFieldErrors(validation.fieldErrors);
 
     if (!validation.valid) {
-      toast({ type: 'error', title: 'Submission Blocked', description: 'Critical validation errors must be resolved before submitting.' });
-      return;
+      toast({ type: 'warning', title: 'Validation issues', description: 'Validation reported problems. The invoice will be submitted to workflow and marked for review.' });
     }
-    if (!validation.valid) return;
 
     const manualDraft = toManualDraft(draft);
     const nextItem: WorkflowItem = {
       id: `WF-${String(Date.now()).slice(-6)}`,
+      vendorId: manualDraft.vendorId || validation.poSource?.vendorId || '',
       vendorName: manualDraft.vendorName,
       poNumber: manualDraft.poNumber,
-      poAmount: validation.poSource?.poAmount ?? manualDraft.invoiceAmount,
-      poQty: validation.poSource?.poQty ?? manualDraft.quantity,
-      grnNumber: manualDraft.grnNumber,
-      grnQty: validation.grnSource?.grnQty ?? manualDraft.quantity,
-      challanNumber: manualDraft.challanNumber,
+      poAmount: validation.poSource?.finalTotalAmount ?? manualDraft.invoiceAmount,
+      poQty: validation.poSource ? (validation.poSource.items ? validation.poSource.items.reduce((s, it) => s + (it.quantityOrdered || 0), 0) : manualDraft.quantity) : manualDraft.quantity,
+      grnNumber: manualDraft.grnReference,
+      grnQty: validation.grnSource?.quantityReceived ?? manualDraft.quantity,
+      challanNumber: manualDraft.deliveryChallanNumber || '',
       invoiceNumber: manualDraft.invoiceNumber,
       invoiceDate: manualDraft.invoiceDate,
       invoiceAmount: manualDraft.invoiceAmount,
@@ -974,8 +972,8 @@ export default function InvoicesPage() {
       <Panel title="Invoices arrived today" subtitle="Current-day invoices use the same shared workflow records.">
         <div className="overflow-auto">
           <table className="min-w-[1120px] w-full border-separate border-spacing-0 text-left text-sm">
-            <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-3">Invoice</th><th className="border-b border-white/10 px-3 py-3">Vendor</th><th className="border-b border-white/10 px-3 py-3">PO / GRN / DC</th><th className="border-b border-white/10 px-3 py-3">Amount</th><th className="border-b border-white/10 px-3 py-3">Match</th><th className="border-b border-white/10 px-3 py-3">Status</th><th className="border-b border-white/10 px-3 py-3">Action</th></tr></thead>
-            <tbody>{todayRows.map((row) => <tr key={row.id} className="hover:bg-white/[0.03]"><td className="border-b border-white/5 px-3 py-4 font-medium text-white">{row.invoiceNumber}<div className="text-xs text-slate-500">{row.intakeMode} | {row.arrivalDate}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.vendorName}</td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.poNumber}<div className="text-xs text-slate-500">{row.grnNumber} / {row.challanNumber}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(row.invoiceAmount)}<div className="text-xs text-slate-500">GST {money(row.gstAmount)}</div></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.matchStatus === 'Matched' ? 'emerald' : row.matchStatus === 'Variance' ? 'amber' : 'slate'}>{row.matchStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={badgeForStatus(row.status)}>{row.status}</Badge></td><td className="border-b border-white/5 px-3 py-4"><button onClick={() => setPreviewItem(row)} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200"><Eye size={14} />View</button></td></tr>)}</tbody>
+            <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-3">Invoice</th><th className="border-b border-white/10 px-3 py-3">Vendor</th><th className="border-b border-white/10 px-3 py-3">Purchase Order</th><th className="border-b border-white/10 px-3 py-3">Amount</th><th className="border-b border-white/10 px-3 py-3">Match</th><th className="border-b border-white/10 px-3 py-3">Status</th><th className="border-b border-white/10 px-3 py-3">Action</th></tr></thead>
+            <tbody>{todayRows.map((row) => <tr key={row.id} className="hover:bg-white/[0.03]"><td className="border-b border-white/5 px-3 py-4 font-medium text-white">{row.invoiceNumber}<div className="text-xs text-slate-500">{row.intakeMode} | {row.arrivalDate}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.vendorName}</td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.poNumber}</td><td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(row.invoiceAmount)}<div className="text-xs text-slate-500">GST {money(row.gstAmount)}</div></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.matchStatus === 'Matched' ? 'emerald' : row.matchStatus === 'Variance' ? 'amber' : 'slate'}>{row.matchStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={badgeForStatus(row.status)}>{row.status}</Badge></td><td className="border-b border-white/5 px-3 py-4"><button onClick={() => setPreviewItem(row)} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200"><Eye size={14} />View</button></td></tr>)}</tbody>
           </table>
         </div>
       </Panel>
@@ -1001,7 +999,7 @@ export default function InvoicesPage() {
         <div className="overflow-auto">
           <table className="min-w-[1280px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-3">Invoice</th><th className="border-b border-white/10 px-3 py-3">Vendor</th><th className="border-b border-white/10 px-3 py-3">Documents</th><th className="border-b border-white/10 px-3 py-3">Amount</th><th className="border-b border-white/10 px-3 py-3">Route</th><th className="border-b border-white/10 px-3 py-3">Match</th><th className="border-b border-white/10 px-3 py-3">Approval</th><th className="border-b border-white/10 px-3 py-3">Payment</th><th className="border-b border-white/10 px-3 py-3">Action</th></tr></thead>
-            <tbody>{pageRows.map((row) => <tr key={row.id} className="hover:bg-white/[0.03]"><td className="border-b border-white/5 px-3 py-4 font-medium text-white">{row.invoiceNumber}<div className="text-xs text-slate-500">{row.invoiceDate} | {row.intakeMode}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.vendorName}</td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.poNumber}<div className="text-xs text-slate-500">{row.grnNumber} / {row.challanNumber}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(row.invoiceAmount)}<div className="text-xs text-slate-500">GST {money(row.gstAmount)}</div></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.approvalLevel === 'L1' ? 'cyan' : row.approvalLevel === 'L2' ? 'violet' : 'amber'}>{row.approvalLevel}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.matchStatus === 'Matched' ? 'emerald' : row.matchStatus === 'Variance' ? 'amber' : 'slate'}>{row.matchStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={badgeForStatus(row.status)}>{row.status}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.paymentStatus === 'Ready' || row.paymentStatus === 'Paid' ? 'emerald' : row.paymentStatus === 'Hold' ? 'amber' : row.paymentStatus === 'Failed' ? 'rose' : 'slate'}>{row.paymentStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><button onClick={() => setPreviewItem(row)} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200">Preview</button></td></tr>)}</tbody>
+            <tbody>{pageRows.map((row) => <tr key={row.id} className="hover:bg-white/[0.03]"><td className="border-b border-white/5 px-3 py-4 font-medium text-white">{row.invoiceNumber}<div className="text-xs text-slate-500">{row.invoiceDate} | {row.intakeMode}</div></td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.vendorName}</td><td className="border-b border-white/5 px-3 py-4 text-slate-300">{row.poNumber}</td><td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(row.invoiceAmount)}<div className="text-xs text-slate-500">GST {money(row.gstAmount)}</div></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.approvalLevel === 'L1' ? 'cyan' : row.approvalLevel === 'L2' ? 'violet' : 'amber'}>{row.approvalLevel}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.matchStatus === 'Matched' ? 'emerald' : row.matchStatus === 'Variance' ? 'amber' : 'slate'}>{row.matchStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={badgeForStatus(row.status)}>{row.status}</Badge></td><td className="border-b border-white/5 px-3 py-4"><Badge tone={row.paymentStatus === 'Ready' || row.paymentStatus === 'Paid' ? 'emerald' : row.paymentStatus === 'Hold' ? 'amber' : row.paymentStatus === 'Failed' ? 'rose' : 'slate'}>{row.paymentStatus}</Badge></td><td className="border-b border-white/5 px-3 py-4"><button onClick={() => setPreviewItem(row)} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200">Preview</button></td></tr>)}</tbody>
           </table>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">

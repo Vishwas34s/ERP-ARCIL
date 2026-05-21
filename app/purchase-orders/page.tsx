@@ -10,7 +10,7 @@ import { createEmptyLineItem, normalizePurchaseOrder, statusTone, validatePurcha
 import { newPurchaseOrderDraft, usePurchaseOrders } from '@/lib/purchase-order-store';
 import { money } from '@/lib/utils';
 import type { PurchaseOrder, PurchaseOrderLineItem, Vendor } from '@/lib/types';
-import { CheckCircle2, Eye, FileDown, FileText, ListChecks, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, Eye, FileText, ListChecks, Pencil, Plus, RefreshCw, Save, Search, Trash2, Upload, XCircle } from 'lucide-react';
 
 type FieldErrors = Partial<Record<keyof PurchaseOrder | 'items', string>>;
 type PurchaseOrderView = 'create' | 'list';
@@ -477,8 +477,8 @@ export default function PurchaseOrdersPage() {
                     <div className="flex flex-wrap gap-2">
                       <Link href={`/purchase-orders/${encodeURIComponent(po.id)}`} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-cyan-200 transition hover:bg-white/10" aria-label={`View ${po.poNumber}`}><Eye size={16} /></Link>
                       <button onClick={() => edit(po)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Edit ${po.poNumber}`}><Pencil size={16} /></button>
-                      <button onClick={() => window.print()} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Print ${po.poNumber}`}><Printer size={16} /></button>
-                      <button onClick={() => window.print()} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Export ${po.poNumber}`}><FileDown size={16} /></button>
+                      
+                      
                       {isAdmin && <button onClick={() => deletePo(po)} className="grid h-9 w-9 place-items-center rounded-lg border border-rose-400/30 bg-rose-400/10 text-rose-200 transition hover:bg-rose-400/15" aria-label={`Delete ${po.poNumber}`}><Trash2 size={16} /></button>}
                     </div>
                   </td>

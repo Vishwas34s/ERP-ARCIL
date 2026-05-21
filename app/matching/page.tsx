@@ -6,6 +6,7 @@ import { useToast } from '@/components/toast';
 import { evaluateWorkflowMatch, matchBadgeTone, matchStatusLabel } from '@/lib/matching';
 import { useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { usePurchaseOrders } from '@/lib/purchase-order-store';
+import { useGoodsReceipts } from '@/lib/grn-store';
 import { money } from '@/lib/utils';
 import { 
   AlertTriangle, 
@@ -21,7 +22,7 @@ import {
   Columns, 
   Sparkles 
 } from 'lucide-react';
-import type { PurchaseOrder } from '@/lib/types';
+import type { GoodsReceipt, PurchaseOrder } from '@/lib/types';
 
 // ==========================================
 // FALLBACK DATA HELPERS FOR ROBUST RESOLUTION
@@ -79,7 +80,7 @@ function getFallbackReceiptDate(invoiceDate: string) {
 }
 
 // Helper to resolve PO, GRN and Invoice details for comparison
-function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder) {
+function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder, grnRecord?: GoodsReceipt) {
   const vendorGst = poRecord?.vendorGstDetails || getFallbackGst(item.vendorName);
   const vendorAddress = poRecord?.vendorAddress || 'Pune, Maharashtra';
   
@@ -88,21 +89,27 @@ function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder) {
   const poItemNum = poRecord?.items[0]?.itemNumber || '1';
   
   const poPrice = poRecord?.items[0]?.unitPrice || (item.poQty > 0 ? (item.poAmount / item.poQty) : 850);
+  const grnPrice = grnRecord?.unitPrice || poPrice;
   const invoicePrice = item.grnQty > 0 ? (item.invoiceAmount / item.grnQty) : (item.poQty > 0 ? (item.invoiceAmount / item.poQty) : 850);
   
   const poGst = poRecord?.taxAmount || item.poAmount * 0.18;
   const invGst = item.gstAmount;
   
   const poPayment = poRecord?.paymentTerms || 'Net 30';
+  const invoicePayment = item.paymentMode || 'Net 30';
   
   const poDate = poRecord?.poDate || getFallbackPoDate(item.invoiceDate);
-  const receiptDate = getFallbackReceiptDate(item.invoiceDate);
+  const receiptDate = grnRecord?.goodsReceiptDate || getFallbackReceiptDate(item.invoiceDate);
+  const grnDeliveryChallan = grnRecord?.deliveryChallanNumber || item.challanNumber || 'N/A';
+  const grnWarehouse = grnRecord?.warehouseLocation || 'Bhiwandi Warehouse';
   
   const poTotal = poRecord?.finalTotalAmount || (item.poAmount + poGst);
   const invTotal = item.invoiceAmount + item.gstAmount;
 
   const poRemarks = 'Delivery window: 9 AM - 5 PM.';
-  const grnRemarks = 'Gate check passed. Quantity physically counted and verified.';
+  const grnRemarks = grnRecord
+    ? `GRN ${grnRecord.grnNumber} received, challan ${grnDeliveryChallan}. Quantity counted.`
+    : 'Gate check passed. Quantity physically counted and verified.';
   const invRemarks = item.lastActionBy === 'Manual Invoice Entry' ? 'Manually processed invoice.' : 'Digitized via AI OCR intake.';
 
   const rows = [
@@ -130,17 +137,17 @@ function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder) {
     {
       field: 'Quantity',
       poValue: `${item.poQty} Units`,
-      grnValue: `${item.grnQty} Units`,
+      grnValue: `${grnRecord?.quantityReceived ?? item.grnQty} Units`,
       invoiceValue: `${item.grnQty} Units`,
-      status: item.poQty === item.grnQty ? 'match' as const : 'variance' as const,
-      poHighlight: item.poQty !== item.grnQty,
-      grnHighlight: item.poQty !== item.grnQty,
-      invoiceHighlight: item.poQty !== item.grnQty
+      status: item.poQty === (grnRecord?.quantityReceived ?? item.grnQty) ? 'match' as const : 'variance' as const,
+      poHighlight: item.poQty !== (grnRecord?.quantityReceived ?? item.grnQty),
+      grnHighlight: item.poQty !== (grnRecord?.quantityReceived ?? item.grnQty),
+      invoiceHighlight: item.poQty !== (grnRecord?.quantityReceived ?? item.grnQty)
     },
     {
       field: 'Price',
       poValue: money(poPrice),
-      grnValue: 'N/A',
+      grnValue: grnRecord ? money(grnPrice) : 'N/A',
       invoiceValue: money(invoicePrice),
       status: Math.abs(poPrice - invoicePrice) < 0.05 ? 'match' as const : 'variance' as const,
       poHighlight: Math.abs(poPrice - invoicePrice) >= 0.05,
@@ -212,10 +219,11 @@ interface ComparisonModalProps {
   item: WorkflowItem;
   onClose: () => void;
   purchaseOrders: PurchaseOrder[];
+  goodsReceipts: GoodsReceipt[];
   focusedDoc: 'po' | 'grn' | 'invoice' | 'all';
 }
 
-function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: ComparisonModalProps) {
+function ComparisonModal({ item, onClose, purchaseOrders, goodsReceipts, focusedDoc }: ComparisonModalProps) {
   const [layout, setLayout] = useState<'table' | 'cards'>('table');
   const [showMismatchesOnly, setShowMismatchesOnly] = useState<boolean>(false);
   
@@ -223,13 +231,17 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
     return purchaseOrders.find((p) => p.poNumber === item.poNumber);
   }, [purchaseOrders, item.poNumber]);
 
+  const grnRecord = useMemo(() => {
+    return goodsReceipts.find((g) => g.grnNumber === item.grnNumber);
+  }, [goodsReceipts, item.grnNumber]);
+
   const rows = useMemo(() => {
-    const rawRows = resolveComparisonRows(item, poRecord);
+    const rawRows = resolveComparisonRows(item, poRecord, grnRecord);
     if (showMismatchesOnly) {
       return rawRows.filter((r) => r.status === 'variance');
     }
     return rawRows;
-  }, [item, poRecord, showMismatchesOnly]);
+  }, [item, poRecord, grnRecord, showMismatchesOnly]);
 
   const result = useMemo(() => evaluateWorkflowMatch(item), [item]);
 
@@ -710,6 +722,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, focusedDoc }: Comparis
 export default function MatchingPage() {
   const { items, update } = useWorkflowItems();
   const { items: purchaseOrders } = usePurchaseOrders();
+  const { items: goodsReceipts } = useGoodsReceipts();
   const toast = useToast();
 
   // State to trigger detailed comparison modal
@@ -907,6 +920,7 @@ export default function MatchingPage() {
           item={selectedCompareItem} 
           onClose={() => setSelectedCompareItem(null)} 
           purchaseOrders={purchaseOrders}
+          goodsReceipts={goodsReceipts}
           focusedDoc={focusedDoc}
         />
       )}

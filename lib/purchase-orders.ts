@@ -29,6 +29,7 @@ export const emptyPurchaseOrderDraft: PurchaseOrder = {
   poNumber: '',
   poDate: '2026-05-18',
   intendedDeliveryDate: '2026-05-18',
+  expectedDeliveryDate: '2026-05-18',
   vendorId: '',
   vendorName: '',
   vendorAddress: '',
@@ -39,6 +40,8 @@ export const emptyPurchaseOrderDraft: PurchaseOrder = {
   billingAddress: 'Finance Tower, Mumbai, Maharashtra 400001',
   shippingAddress: 'Central Warehouse, Bhiwandi, Maharashtra 421302',
   departmentName: '',
+  costCenter: '',
+  gstRate: 18,
   items: [createEmptyLineItem()],
   subtotal: 0,
   taxAmount: 0,
@@ -51,6 +54,14 @@ export const emptyPurchaseOrderDraft: PurchaseOrder = {
   matchingStatus: 'Ready for 3-Way Match',
   createdAt: '',
   updatedAt: '',
+  deliveryChallanNumber: '',
+  deliveryChallanDate: '2026-05-18',
+  grnNumber: '',
+  grnDate: '',
+  receivedQuantity: 0,
+  acceptedQuantity: 0,
+  rejectedQuantity: 0,
+  vendorReferenceId: '',
 };
 
 export function normalizePurchaseOrder(po: PurchaseOrder): PurchaseOrder {
@@ -68,6 +79,8 @@ export function normalizePurchaseOrder(po: PurchaseOrder): PurchaseOrder {
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
   const taxAmount = Math.max(0, Number(po.taxAmount) || 0);
   const discount = Math.max(0, Number(po.discount) || 0);
+  const gstRate = Number(po.gstRate) || Number(String(po.gstDetails).match(/(\d+(?:\.\d+)?)/)?.[1]) || 18;
+  const expectedDeliveryDate = po.expectedDeliveryDate || po.intendedDeliveryDate;
 
   return {
     ...po,
@@ -75,6 +88,10 @@ export function normalizePurchaseOrder(po: PurchaseOrder): PurchaseOrder {
     subtotal,
     taxAmount,
     discount,
+    gstRate,
+    expectedDeliveryDate,
+    deliveryChallanNumber: String(po.deliveryChallanNumber || '').trim(),
+    deliveryChallanDate: po.deliveryChallanDate || po.poDate,
     finalTotalAmount: Math.max(0, subtotal + taxAmount - discount),
   };
 }
@@ -92,6 +109,7 @@ export function validatePurchaseOrder(draft: PurchaseOrder, existing: PurchaseOr
     ['poNumber', 'PO number'],
     ['poDate', 'PO date'],
     ['intendedDeliveryDate', 'Intended delivery date'],
+    ['expectedDeliveryDate', 'Expected delivery date'],
     ['vendorName', 'Vendor name'],
     ['vendorAddress', 'Vendor address'],
     ['vendorContactNumber', 'Vendor contact number'],
@@ -100,7 +118,10 @@ export function validatePurchaseOrder(draft: PurchaseOrder, existing: PurchaseOr
     ['billingAddress', 'Billing address'],
     ['shippingAddress', 'Shipping address'],
     ['departmentName', 'Department name'],
+    ['costCenter', 'Cost center'],
     ['paymentTerms', 'Payment terms'],
+    ['deliveryChallanNumber', 'Delivery challan number'],
+    ['deliveryChallanDate', 'Delivery challan date'],
   ];
 
   required.forEach(([key, label]) => {
@@ -145,6 +166,19 @@ export function validatePurchaseOrder(draft: PurchaseOrder, existing: PurchaseOr
     const message = 'Vendor GSTIN format is invalid.';
     errors.push(message);
     fieldErrors.vendorGstDetails = message;
+  }
+
+  if (!Number.isFinite(po.gstRate) || po.gstRate <= 0) {
+    const message = 'GST rate is required and must be greater than zero.';
+    errors.push(message);
+    fieldErrors.gstRate = message;
+  }
+
+  const expectedDeliveryDate = new Date(po.expectedDeliveryDate);
+  if (!po.expectedDeliveryDate || Number.isNaN(expectedDeliveryDate.getTime())) {
+    const message = 'Expected delivery date is invalid.';
+    errors.push(message);
+    fieldErrors.expectedDeliveryDate = message;
   }
 
   if (!po.items.length) {

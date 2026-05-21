@@ -1,6 +1,19 @@
+import type { GoodsReceipt, PurchaseOrder } from './types';
 import type { WorkflowItem } from './workflow-store';
 
-export type MatchStatusLabel = 'Matched' | 'Variance Detected';
+export type MatchStatusLabel = 
+  | 'Success' 
+  | 'Warning' 
+  | 'Failed' 
+  | 'Pending Review' 
+  | 'Matched' 
+  | 'Partial Match' 
+  | 'Quantity Variance' 
+  | 'GST Variance' 
+  | 'Vendor Mismatch' 
+  | 'Hold' 
+  | 'Rejected' 
+  | 'Variance Detected';
 
 export type VarianceDetail = {
   field: 'Quantity' | 'Price' | 'Terms' | 'Vendor' | 'GST' | 'PO Reference' | 'GRN Reference' | 'Date' | 'Amount';
@@ -12,17 +25,31 @@ export type VarianceDetail = {
 export type ManualInvoiceDraft = {
   invoiceNumber: string;
   invoiceDate: string;
+  dueDate: string;
+  vendorId?: string;
   vendorName: string;
+  vendorCode: string;
   vendorGstin: string;
+  vendorPan: string;
   invoiceAmount: number;
   taxAmount: number;
   gstInformation: string;
+  gstRate: number;
   poNumber: string;
   grnNumber: string;
-  challanNumber: string;
+  grnDate: string;
   itemDetails: string;
   quantity: number;
   price: number;
+  subtotal: number;
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  tdsAmount: number;
+  freightAmount: number;
+  roundOff: number;
+  grossAmount: number;
   terms: string;
   remarks: string;
   paymentMode: WorkflowItem['paymentMode'];
@@ -31,10 +58,18 @@ export type ManualInvoiceDraft = {
 export type InvoiceValidationResult = {
   valid: boolean;
   errors: string[];
+  fieldErrors: Record<string, string>;
   status: MatchStatusLabel;
   variances: VarianceDetail[];
-  poSource?: WorkflowItem;
-  grnSource?: WorkflowItem;
+  poSource?: PurchaseOrder;
+  grnSource?: GoodsReceipt;
+  checks: {
+    vendorVerified: boolean;
+    poMatched: boolean;
+    grnMatched: boolean;
+    taxValidated: boolean;
+    amountValidated: boolean;
+  };
 };
 
 function sameText(left: string, right: string) {
@@ -50,8 +85,9 @@ export function matchStatusLabel(status: WorkflowItem['matchStatus']) {
 }
 
 export function matchBadgeTone(status: WorkflowItem['matchStatus'] | MatchStatusLabel) {
-  if (status === 'Matched') return 'emerald' as const;
-  if (status === 'Variance' || status === 'Variance Detected') return 'amber' as const;
+  if (status === 'Matched' || status === 'Success') return 'emerald' as const;
+  if (status === 'Variance' || status === 'Variance Detected' || status === 'Warning' || status === 'Pending Review') return 'amber' as const;
+  if (status === 'Failed' || status === 'Rejected') return 'rose' as const;
   return 'slate' as const;
 }
 
@@ -72,108 +108,198 @@ export function evaluateWorkflowMatch(item: WorkflowItem): { status: MatchStatus
     variances.push({ field: 'PO Reference', expected: 'PO reference present', actual: 'Missing', severity: 'critical' });
   }
 
-  if (!item.grnNumber.trim() || !item.challanNumber.trim()) {
-    variances.push({ field: 'GRN Reference', expected: 'GRN and challan references present', actual: 'Missing reference', severity: 'critical' });
+  if (!item.grnNumber.trim()) {
+    variances.push({ field: 'GRN Reference', expected: 'GRN reference present', actual: 'Missing reference', severity: 'critical' });
   }
 
   return { status: variances.length ? 'Variance Detected' : 'Matched', variances };
 }
 
-export function validateManualInvoice(draft: ManualInvoiceDraft, records: WorkflowItem[], existingInvoiceNumbers: string[] = [], vendors: import('./types').Vendor[] = []): InvoiceValidationResult {
+export function validateManualInvoice(
+  draft: ManualInvoiceDraft,
+  records: WorkflowItem[],
+  existingInvoiceNumbers: string[] = [],
+  vendors: import('./types').Vendor[] = [],
+  purchaseOrders: PurchaseOrder[] = [],
+  goodsReceipts: GoodsReceipt[] = [],
+): InvoiceValidationResult {
   const errors: string[] = [];
+  const fieldErrors: Record<string, string> = {};
   const variances: VarianceDetail[] = [];
+
+  const checks = {
+    vendorVerified: false,
+    poMatched: false,
+    grnMatched: false,
+    taxValidated: false,
+    amountValidated: false,
+  };
+
   const required: Array<[keyof ManualInvoiceDraft, string]> = [
     ['invoiceNumber', 'Invoice number'],
-    ['invoiceDate', 'Invoice date'],
     ['vendorName', 'Vendor name'],
-    ['vendorGstin', 'Vendor GST details'],
-    ['poNumber', 'PO reference number'],
-    ['grnNumber', 'GRN/delivery challan reference'],
-    ['itemDetails', 'Item details'],
-    ['terms', 'Terms/conditions'],
+    ['vendorCode', 'Vendor code'],
+    ['vendorGstin', 'Vendor GSTIN'],
+    ['invoiceDate', 'Invoice date'],
+    ['dueDate', 'Due date'],
+    ['poNumber', 'PO Number'],
+    ['quantity', 'Quantity'],
+    ['taxableAmount', 'Taxable amount'],
+    ['grossAmount', 'Gross amount'],
   ];
 
   required.forEach(([key, label]) => {
-    if (!String(draft[key] ?? '').trim()) errors.push(`${label} is required.`);
+    const val = draft[key];
+    if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '') || (typeof val === 'number' && val === 0 && (key === 'quantity' || key === 'grossAmount'))) {
+      const msg = `${label} is required.`;
+      errors.push(msg);
+      fieldErrors[key] = msg;
+    }
   });
 
-  if (!draft.invoiceDate || Number.isNaN(new Date(draft.invoiceDate).getTime())) {
-    errors.push('Invoice date is invalid.');
-  } else if (new Date(draft.invoiceDate) > new Date()) {
-    errors.push('Invoice date cannot be in the future.');
+  const invDate = new Date(draft.invoiceDate);
+  const dueDt = new Date(draft.dueDate);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  if (!draft.dueDate || Number.isNaN(dueDt.getTime())) {
+    const msg = 'Due date is required.';
+    errors.push(msg);
+    fieldErrors.dueDate = msg;
   }
 
-  if (draft.invoiceAmount <= 0) errors.push('Invoice amount must be greater than zero.');
-  if (draft.taxAmount < 0) errors.push('Tax amount cannot be negative.');
-  if (draft.quantity <= 0) errors.push('Quantity must be greater than zero.');
-  if (draft.price <= 0) errors.push('Price must be greater than zero.');
-
-  const gstPattern = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-  if (draft.vendorGstin.trim() && !gstPattern.test(draft.vendorGstin.trim().toUpperCase())) {
-    errors.push('Vendor GSTIN format is invalid.');
+  if (!Number.isNaN(invDate.getTime())) {
+    if (invDate > today) {
+      const msg = 'Invoice date cannot exceed current date.';
+      errors.push(msg);
+      fieldErrors.invoiceDate = msg;
+    }
+  }
+  if (!Number.isNaN(invDate.getTime()) && !Number.isNaN(dueDt.getTime())) {
+    if (dueDt < invDate) {
+      const msg = 'Due date cannot be before invoice date.';
+      errors.push(msg);
+      fieldErrors.dueDate = msg;
+    }
   }
 
   if (existingInvoiceNumbers.some((invoice) => sameText(invoice, draft.invoiceNumber))) {
-    errors.push('Duplicate invoice number detected.');
+    const msg = 'Duplicate invoice number detected.';
+    errors.push(msg);
+    fieldErrors.invoiceNumber = msg;
   }
 
-  const matchingVendor = vendors.find(v => sameText(v.legalName, draft.vendorName) || sameText(v.displayName, draft.vendorName));
-  if (matchingVendor) {
+  const matchingVendor = vendors.find(
+    (v) => sameText(v.legalName, draft.vendorName) || sameText(v.displayName, draft.vendorName) || v.vendorCode === draft.vendorCode || (draft.vendorId && v.id === draft.vendorId),
+  );
+
+  if (!matchingVendor) {
+    variances.push({ field: 'Vendor', expected: 'Approved vendor in master', actual: draft.vendorName || 'Not selected', severity: 'critical' });
+  } else {
+    checks.vendorVerified = true;
     if (matchingVendor.blacklistFlag === 'Yes') {
-      errors.push('Vendor is blacklisted and not allowed to submit invoices.');
+      errors.push('Vendor is blacklisted.');
+      checks.vendorVerified = false;
     } else if (matchingVendor.approvalStatus !== 'Approved') {
-      errors.push('Vendor onboarding is incomplete. Approval required before invoicing.');
+      errors.push('Vendor is not approved in master.');
+      checks.vendorVerified = false;
+    }
+
+    if (draft.vendorGstin && !sameText(matchingVendor.gstin, draft.vendorGstin)) {
+      variances.push({ field: 'GST', expected: matchingVendor.gstin, actual: draft.vendorGstin, severity: 'critical' });
+      checks.vendorVerified = false;
+    }
+
+    if (draft.vendorPan && matchingVendor.pan && !sameText(matchingVendor.pan, draft.vendorPan)) {
+      variances.push({ field: 'Vendor', expected: matchingVendor.pan, actual: draft.vendorPan, severity: 'critical' });
+      checks.vendorVerified = false;
     }
   }
 
-  const poSource = records.find((item) => sameText(item.poNumber, draft.poNumber));
-  const grnSource = records.find((item) => sameText(item.grnNumber, draft.grnNumber) || sameText(item.challanNumber, draft.grnNumber) || sameText(item.challanNumber, draft.challanNumber));
+  const poSource = purchaseOrders.find((po) => sameText(po.poNumber, draft.poNumber));
+  const grnSource = goodsReceipts.find((grn) => sameText(grn.grnNumber, draft.grnNumber) || (draft.challanNumber && sameText(grn.deliveryChallanNumber, draft.challanNumber)));
 
+  // Rule 1: Purchase Order is Mandatory
   if (!poSource) {
-    variances.push({ field: 'PO Reference', expected: 'Existing PO record', actual: draft.poNumber || 'Missing', severity: 'critical' });
-  }
-
-  if (!grnSource) {
-    variances.push({ field: 'GRN Reference', expected: 'Existing GRN or delivery challan', actual: draft.grnNumber || draft.challanNumber || 'Missing', severity: 'critical' });
-  }
-
-  if (poSource && !sameText(poSource.vendorName, draft.vendorName)) {
-    variances.push({ field: 'Vendor', expected: poSource.vendorName, actual: draft.vendorName, severity: 'critical' });
-  }
-
-  if (poSource && poSource.poQty !== draft.quantity) {
-    variances.push({ field: 'Quantity', expected: `PO qty ${poSource.poQty}`, actual: `Invoice qty ${formatNumber(draft.quantity)}`, severity: 'critical' });
-  }
-
-  if (grnSource && grnSource.grnQty !== draft.quantity) {
-    variances.push({ field: 'Quantity', expected: `GRN qty ${grnSource.grnQty}`, actual: `Invoice qty ${formatNumber(draft.quantity)}`, severity: 'critical' });
-  }
-
-  if (poSource) {
-    const expectedUnitPrice = poSource.poQty > 0 ? poSource.poAmount / poSource.poQty : 0;
-    if (Math.abs(expectedUnitPrice - draft.price) > 0.01 || Math.abs(poSource.poAmount - draft.invoiceAmount) > 0.01) {
-      variances.push({ field: 'Price', expected: `PO unit ${formatNumber(expectedUnitPrice)} / amount ${formatNumber(poSource.poAmount)}`, actual: `Invoice unit ${formatNumber(draft.price)} / amount ${formatNumber(draft.invoiceAmount)}`, severity: 'critical' });
+    const msg = 'PO selection is mandatory. Invoice must be linked to a valid Purchase Order.';
+    errors.push(msg);
+    if (draft.poNumber) {
+      fieldErrors.poNumber = 'Selected PO Number not found in system.';
+    }
+    checks.poMatched = false;
+  } else {
+    checks.poMatched = true;
+    if (poSource.status === 'Draft' || poSource.status === 'Cancelled') {
+      variances.push({ field: 'PO Reference', expected: 'Issued or Approved status', actual: poSource.status, severity: 'critical' });
+      checks.poMatched = false;
+    }
+    if (!sameText(poSource.vendorName, draft.vendorName)) {
+      variances.push({ field: 'Vendor', expected: `PO Vendor: ${poSource.vendorName}`, actual: draft.vendorName, severity: 'critical' });
+      checks.poMatched = false;
+    }
+    if (Math.abs(poSource.finalTotalAmount - draft.grossAmount) > 0.1) {
+      variances.push({ field: 'Amount', expected: `PO Total: ${poSource.finalTotalAmount}`, actual: `Inv Total: ${draft.grossAmount}`, severity: 'critical' });
+      checks.poMatched = false;
     }
   }
 
-  if (draft.gstInformation.trim() && !draft.gstInformation.toLowerCase().includes('gst')) {
-    variances.push({ field: 'GST', expected: 'GST information describing applicable GST', actual: draft.gstInformation, severity: 'warning' });
+  // Rule 2: Goods Receipt is Mandatory (3-Way Match Requirement)
+  if (poSource && (!grnSource || !draft.grnNumber)) {
+    const msg = 'GRN missing for selected PO. Invoice cannot be validated until goods are received in warehouse.';
+    errors.push(msg);
+    fieldErrors.grnNumber = 'Physical receipt record required.';
+    checks.grnMatched = false;
+  } else {
+    checks.grnMatched = true;
+    if (!sameText(grnSource.poNumber, draft.poNumber)) {
+      variances.push({ field: 'GRN Reference', expected: `Linked to PO ${draft.poNumber}`, actual: `Linked to ${grnSource.poNumber}`, severity: 'critical' });
+      checks.grnMatched = false;
+    }
+    if (draft.quantity > grnSource.quantityReceived) {
+      variances.push({ field: 'Quantity', expected: `Max Received: ${grnSource.quantityReceived}`, actual: `Invoiced: ${draft.quantity}`, severity: 'critical' });
+      checks.grnMatched = false;
+    }
+    const gDate = new Date(grnSource.grnDate);
+    if (!Number.isNaN(gDate.getTime()) && !Number.isNaN(invDate.getTime()) && gDate > invDate) {
+      variances.push({ field: 'Date', expected: `GRN Date <= Invoice Date`, actual: `${grnSource.grnDate} > ${draft.invoiceDate}`, severity: 'warning' });
+    }
   }
 
-  if (draft.taxAmount > draft.invoiceAmount * 0.28) {
-    variances.push({ field: 'GST', expected: 'Tax within configured tolerance', actual: formatNumber(draft.taxAmount), severity: 'warning' });
+  // Tax and Amount Validations
+  checks.taxValidated = true;
+  checks.amountValidated = true;
+
+  const calcSubtotal = draft.quantity * draft.price;
+  if (Math.abs(calcSubtotal - draft.subtotal) > 0.1) {
+    variances.push({ field: 'Amount', expected: `Subtotal ${calcSubtotal.toFixed(2)}`, actual: String(draft.subtotal), severity: 'critical' });
+    checks.amountValidated = false;
   }
 
-  if (draft.terms.trim() && !draft.terms.toLowerCase().includes('net 30')) {
-    variances.push({ field: 'Terms', expected: 'Net 30 standard PO terms', actual: draft.terms, severity: 'warning' });
+  const calcTax = draft.cgstAmount + draft.sgstAmount + draft.igstAmount;
+  if (Math.abs(calcTax - draft.taxAmount) > 0.1) {
+    variances.push({ field: 'GST', expected: `Total Tax ${calcTax.toFixed(2)}`, actual: String(draft.taxAmount), severity: 'critical' });
+    checks.taxValidated = false;
   }
+
+  const expectedGross = draft.taxableAmount + draft.taxAmount + draft.freightAmount + draft.roundOff - draft.tdsAmount;
+  if (Math.abs(expectedGross - draft.grossAmount) > 0.1) {
+    variances.push({ field: 'Amount', expected: `Gross ${expectedGross.toFixed(2)}`, actual: String(draft.grossAmount), severity: 'critical' });
+    checks.amountValidated = false;
+  }
+
+  const hasCritical = variances.some(v => v.severity === 'critical') || errors.length > 0;
+  let status: MatchStatusLabel = 'Success';
+  if (errors.length > 0 || variances.some(v => v.severity === 'critical')) status = 'Failed';
+  else if (variances.length > 0) status = 'Warning';
 
   return {
-    valid: errors.length === 0,
+    valid: !hasCritical,
     errors,
-    status: variances.length ? 'Variance Detected' : 'Matched',
+    fieldErrors,
+    status,
     variances,
-    poSource,
-    grnSource,
+    poSource: poSource && 'items' in poSource ? poSource : undefined,
+    grnSource: grnSource && 'deliveryChallanNumber' in grnSource ? grnSource : undefined,
+    checks,
   };
 }

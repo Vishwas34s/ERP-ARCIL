@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Badge, Panel, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/components/toast';
@@ -118,7 +118,18 @@ export default function PurchaseOrdersPage() {
   const toast = useToast();
   const { items, save, remove, reset } = usePurchaseOrders();
   const [activeView, setActiveView] = useState<PurchaseOrderView>('create');
-  const [draft, setDraft] = useState<PurchaseOrder>(() => emptyDraft());
+  const [draft, setDraft] = useState<PurchaseOrder>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('procureflow-po-draft');
+      if (saved) return JSON.parse(saved);
+    }
+    return emptyDraft();
+  });
+
+  useEffect(() => {
+    localStorage.setItem('procureflow-po-draft', JSON.stringify(draft));
+  }, [draft]);
+
   const [poUploadFile, setPoUploadFile] = useState('');
   const [editingId, setEditingId] = useState<string | undefined>();
   const [errors, setErrors] = useState<string[]>([]);
@@ -190,6 +201,7 @@ export default function PurchaseOrdersPage() {
       vendorEmail: vendor.primaryContactEmail,
       vendorGstDetails: vendor.gstin,
       paymentTerms: vendor.paymentTermsDays ? `Net ${vendor.paymentTermsDays}` : draft.paymentTerms,
+      vendorReferenceId: vendor.id,
     });
   }
 
@@ -308,6 +320,7 @@ export default function PurchaseOrdersPage() {
             <Field label="PO Number" value={draft.poNumber} error={fieldErrors.poNumber} onChange={(value) => patchDraft({ poNumber: value })} placeholder="PO-2001" />
             <Field label="PO Date" type="date" value={draft.poDate} error={fieldErrors.poDate} onChange={(value) => patchDraft({ poDate: value })} />
             <Field label="Intended Delivery Date" type="date" value={draft.intendedDeliveryDate} error={fieldErrors.intendedDeliveryDate} onChange={(value) => patchDraft({ intendedDeliveryDate: value })} />
+            <Field label="Expected Delivery Date" type="date" value={draft.expectedDeliveryDate || ''} error={fieldErrors.expectedDeliveryDate} onChange={(value) => patchDraft({ expectedDeliveryDate: value })} />
             <label className="text-sm text-slate-300">
               Vendor Master
               <select value={draft.vendorId} onChange={(event) => selectVendor(event.target.value)} className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30">
@@ -319,6 +332,13 @@ export default function PurchaseOrdersPage() {
             <Field label="Vendor Contact Number" value={draft.vendorContactNumber} error={fieldErrors.vendorContactNumber} onChange={(value) => patchDraft({ vendorContactNumber: value })} />
             <Field label="Vendor Email" type="email" value={draft.vendorEmail} error={fieldErrors.vendorEmail} onChange={(value) => patchDraft({ vendorEmail: value })} />
             <Field label="Vendor GST Details" required={false} value={draft.vendorGstDetails} error={fieldErrors.vendorGstDetails} onChange={(value) => patchDraft({ vendorGstDetails: value.toUpperCase() })} />
+            <Field label="GST Rate %" type="number" value={draft.gstRate ?? ''} error={fieldErrors.gstRate} onChange={(value) => patchDraft({ gstRate: Number(value) })} />
+            <Field label="Cost Center" value={draft.costCenter || ''} error={fieldErrors.costCenter} onChange={(value) => patchDraft({ costCenter: value })} />
+            <Field label="Vendor Reference ID" value={draft.vendorReferenceId || ''} onChange={(value) => patchDraft({ vendorReferenceId: value })} />
+            <Field label="Delivery Challan Number" value={draft.deliveryChallanNumber || ''} error={fieldErrors.deliveryChallanNumber} onChange={(value) => patchDraft({ deliveryChallanNumber: value })} />
+            <Field label="Delivery Challan Date" type="date" value={draft.deliveryChallanDate || ''} error={fieldErrors.deliveryChallanDate} onChange={(value) => patchDraft({ deliveryChallanDate: value })} />
+            <Field label="GRN Reference" value={draft.grnNumber || ''} onChange={(value) => patchDraft({ grnNumber: value })} />
+            <Field label="GRN Date" type="date" value={draft.grnDate || ''} onChange={(value) => patchDraft({ grnDate: value })} />
             <div className="md:col-span-2"><TextArea label="Vendor Address" value={draft.vendorAddress} error={fieldErrors.vendorAddress} onChange={(value) => patchDraft({ vendorAddress: value })} /></div>
             <Field label="Company Name" value={draft.companyName} error={fieldErrors.companyName} onChange={(value) => patchDraft({ companyName: value })} />
             <Field label="Department Name" value={draft.departmentName} error={fieldErrors.departmentName} onChange={(value) => patchDraft({ departmentName: value })} />
@@ -334,7 +354,7 @@ export default function PurchaseOrdersPage() {
               </div>
               <button type="button" onClick={addLine} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/10"><Plus size={14} /> Add item</button>
             </div>
-            <div className="overflow-auto">
+            <div className="overflow-x-auto">
               <table className="min-w-[980px] w-full border-separate border-spacing-0 text-left text-sm">
                 <thead>
                   <tr className="text-xs uppercase tracking-[0.14em] text-slate-500">
@@ -441,15 +461,15 @@ export default function PurchaseOrdersPage() {
                 <div><span className="block text-xs uppercase tracking-[0.16em] text-slate-500">Rows</span>{po.items.length}</div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href={`/purchase-orders/${encodeURIComponent(po.id)}`} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-cyan-200 transition hover:bg-white/10" aria-label={`View ${po.poNumber}`}><Eye size={16} /></Link>
-                <button onClick={() => edit(po)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Edit ${po.poNumber}`}><Pencil size={16} /></button>
+            <Link href={`/purchase-orders/${encodeURIComponent(po.id)}`} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-cyan-200 transition hover:bg-white/10" aria-label={`View ${po.poNumber}`}><Eye size={16} /></Link>
+            <button onClick={() => edit(po)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Edit ${po.poNumber}`}><Pencil size={16} /></button>
                 {isAdmin && <button onClick={() => deletePo(po)} className="grid h-9 w-9 place-items-center rounded-lg border border-rose-400/30 bg-rose-400/10 text-rose-200 transition hover:bg-rose-400/15" aria-label={`Delete ${po.poNumber}`}><Trash2 size={16} /></button>}
               </div>
             </article>
           ))}
         </div>
 
-        <div className="hidden overflow-auto md:block">
+    <div className="hidden overflow-x-auto md:block">
           <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead>
               <tr className="text-xs uppercase tracking-[0.14em] text-slate-500">

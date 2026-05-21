@@ -5,6 +5,7 @@ export type WorkflowStatus = 'Submitted' | 'Approved' | 'Rejected' | 'On Hold' |
 
 export type WorkflowItem = {
   id: string;
+  vendorId: string;
   vendorName: string;
   poNumber: string;
   poAmount: number;
@@ -31,6 +32,7 @@ export const workflowKey = 'procureflow-workflow-items';
 export const seedWorkflowItems: WorkflowItem[] = [
   {
     id: 'WF-001',
+    vendorId: 'VND-0001',
     vendorName: 'Aster Distributor',
     poNumber: 'PO-1001',
     poAmount: 8500,
@@ -53,6 +55,7 @@ export const seedWorkflowItems: WorkflowItem[] = [
   },
   {
     id: 'WF-002',
+    vendorId: 'VND-0002',
     vendorName: 'Zenith Consulting',
     poNumber: 'PO-1002',
     poAmount: 68000,
@@ -75,6 +78,7 @@ export const seedWorkflowItems: WorkflowItem[] = [
   },
   {
     id: 'WF-003',
+    vendorId: 'VND-0003',
     vendorName: 'Orion Manufacturer',
     poNumber: 'PO-1003',
     poAmount: 245000,
@@ -97,6 +101,7 @@ export const seedWorkflowItems: WorkflowItem[] = [
   },
   {
     id: 'WF-004',
+    vendorId: 'VND-0004',
     vendorName: 'Nova Services',
     poNumber: 'PO-1004',
     poAmount: 98000,
@@ -119,6 +124,7 @@ export const seedWorkflowItems: WorkflowItem[] = [
   },
   {
     id: 'WF-005',
+    vendorId: 'VND-0005',
     vendorName: 'Delta Logistics',
     poNumber: 'PO-1005',
     poAmount: 320000,
@@ -141,6 +147,7 @@ export const seedWorkflowItems: WorkflowItem[] = [
   },
   {
     id: 'WF-006',
+    vendorId: 'VND-0006',
     vendorName: 'Quick Office Supply',
     poNumber: 'PO-1006',
     poAmount: 4200,

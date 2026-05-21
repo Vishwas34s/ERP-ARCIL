@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { emptyPurchaseOrderDraft, normalizePurchaseOrder, seedPurchaseOrders, validatePurchaseOrder } from './purchase-orders';
-import type { PurchaseOrder } from './types';
+import type { GoodsReceipt, PurchaseOrder } from './types';
 
 export const purchaseOrderStorageKey = 'procureflow-purchase-orders';
 
@@ -34,12 +34,55 @@ export function usePurchaseOrders() {
 
   useEffect(() => {
     const sync = () => setItems(readPurchaseOrders());
+
+    const syncFromGrn = () => {
+      const currentPos = readPurchaseOrders();
+      const grnsJson = window.localStorage.getItem('procureflow-goods-receipts');
+      if (!grnsJson) return;
+      
+      let currentGrns: GoodsReceipt[] = [];
+      try { 
+        currentGrns = JSON.parse(grnsJson); 
+      } catch (e) { 
+        return; 
+      }
+
+      let hasChanges = false;
+      const updatedPos = currentPos.map(po => {
+        const linkedGrn = currentGrns.find(g => 
+          g.poNumber.trim().toLowerCase() === po.poNumber.trim().toLowerCase()
+        );
+
+        let nextStatus = po.matchingStatus;
+        if (linkedGrn) {
+          const totalOrdered = po.items.reduce((sum, item) => sum + (item.quantityOrdered || 0), 0);
+          nextStatus = linkedGrn.quantityReceived === totalOrdered ? 'Matched' : 'Variance Review';
+        } else if (po.matchingStatus === 'Matched' || po.matchingStatus === 'Variance Review') {
+          // Revert status if GRN was deleted
+          nextStatus = 'Ready for 3-Way Match';
+        }
+
+        if (nextStatus !== po.matchingStatus) {
+          hasChanges = true;
+          return { ...po, matchingStatus: nextStatus as any };
+        }
+        return po;
+      });
+
+      if (hasChanges) {
+        publishPurchaseOrders(updatedPos);
+      }
+    };
+
     sync();
     window.addEventListener('storage', sync);
     window.addEventListener('procureflow-purchase-orders-updated', sync);
+    window.addEventListener('procureflow-goods-receipts-updated', syncFromGrn);
+
     return () => {
       window.removeEventListener('storage', sync);
       window.removeEventListener('procureflow-purchase-orders-updated', sync);
+      window.removeEventListener('procureflow-goods-receipts-updated', syncFromGrn);
     };
   }, []);
 

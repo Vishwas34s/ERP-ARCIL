@@ -36,7 +36,7 @@ export function PurchaseOrderDetail({ po, actions = true }: { po: PurchaseOrder;
           <DetailBlock label="Department" value={po.departmentName} />
           <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4">
             <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Status</div>
-            <div className="mt-3 flex flex-wrap gap-2"><Badge tone={statusTone(po.status)}>{po.status}</Badge><Badge tone="cyan">{po.matchingStatus}</Badge></div>
+            <div className="mt-3 flex flex-wrap gap-2"><Badge tone={statusTone(po.status)}>{po.status}</Badge><Badge tone={po.matchingStatus === 'Matched' ? 'emerald' : 'cyan'}>{po.matchingStatus}</Badge></div>
           </div>
         </div>
       </Panel>

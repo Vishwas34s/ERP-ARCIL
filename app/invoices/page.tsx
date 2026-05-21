@@ -7,12 +7,19 @@ import { useVendors } from '@/lib/vendor-store';
 import { useDemoUser } from '@/lib/auth';
 import { matchBadgeTone, validateManualInvoice, type InvoiceValidationResult, type ManualInvoiceDraft } from '@/lib/matching';
 import { approvalLevelFor, useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
+import { useGoodsReceipts } from '@/lib/grn-store';
+import { usePurchaseOrders } from '@/lib/purchase-order-store';
 import { money } from '@/lib/utils';
+import type { Vendor, GoodsReceipt, PurchaseOrder } from '@/lib/types';
 import { AlertTriangle, CheckCircle2, Download, Eye, FileImage, FileText, ListChecks, RotateCcw, Save, Search, Upload, X, XCircle } from 'lucide-react';
 
 type IntakeMode = 'OCR' | 'Manual';
 type InvoiceView = 'create' | 'register';
-type InvoiceDraft = Record<string, string>;
+
+type InvoiceDraft = {
+  vendorId: string;
+  [key: string]: string;
+};
 
 type FieldDef = {
   key: string;
@@ -67,12 +74,12 @@ const invoiceGroups: Array<{ title: string; fields: FieldDef[] }> = [
   {
     title: 'Purchase and receipt match',
     fields: [
-      { key: 'poNumber', label: 'PO reference number' },
-      { key: 'poDate', label: 'PO date', type: 'date', required: false },
-      { key: 'grnNumber', label: 'GRN reference number' },
-      { key: 'grnDate', label: 'GRN date', type: 'date', required: false },
-      { key: 'challanNumber', label: 'Delivery challan number' },
-      { key: 'challanDate', label: 'Delivery challan date', type: 'date', required: false },
+      { key: 'poNumber', label: 'PO Number' },
+      { key: 'poDate', label: 'PO Date', type: 'date', required: false },
+      { key: 'grnNumber', label: 'GRN Number', derived: true },
+      { key: 'grnDate', label: 'GRN Date', type: 'date', required: false, derived: true },
+      { key: 'challanNumber', label: 'Challan Number', derived: true },
+      { key: 'challanDate', label: 'Challan Date', type: 'date', required: false, derived: true },
       { key: 'department', label: 'Department' },
       { key: 'costCenter', label: 'Cost center' },
     ],
@@ -125,6 +132,7 @@ const defaultDraft: InvoiceDraft = {
   sourceFileName: '',
   ocrConfidence: '',
   priority: 'Medium',
+  vendorId: '',
   vendorName: '',
   vendorCode: '',
   vendorGstin: '',
@@ -145,8 +153,6 @@ const defaultDraft: InvoiceDraft = {
   poDate: '',
   grnNumber: '',
   grnDate: '',
-  challanNumber: '',
-  challanDate: '',
   department: 'Operations',
   costCenter: 'CC-AP-001',
   lineItemCode: 'ITEM-001',
@@ -187,21 +193,138 @@ function totalTax(draft: InvoiceDraft) {
   return numberValue(draft.cgstAmount) + numberValue(draft.sgstAmount) + numberValue(draft.igstAmount);
 }
 
+function normalizeKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function mapVendorAddress(vendor: any) {
+  return [vendor.addressLine1, vendor.city, vendor.state].filter(Boolean).join(', ');
+}
+
+function findVendor(vendors: any[], query: string) {
+  const normalized = normalizeKey(query);
+  return vendors.find((vendor) => {
+    return [vendor.displayName, vendor.legalName, vendor.vendorCode, vendor.gstin, vendor.pan]
+      .filter(Boolean)
+      .some((candidate) => normalizeKey(candidate).includes(normalized));
+  });
+}
+
+function findPurchaseOrder(purchaseOrders: PurchaseOrder[], query: string) {
+  const normalized = normalizeKey(query);
+  return purchaseOrders.find((po) => normalizeKey(po.poNumber) === normalized || normalizeKey(po.poNumber).includes(normalized));
+}
+
+function findGoodsReceipt(goodsReceipts: GoodsReceipt[], query: string) {
+  const normalized = normalizeKey(query);
+  return goodsReceipts.find((grn) => normalizeKey(grn.grnNumber) === normalized || normalizeKey(grn.grnNumber).includes(normalized) || normalizeKey(grn.deliveryChallanNumber).includes(normalized));
+}
+
+function deriveDraftFromVendor(draft: InvoiceDraft, vendor: any) {
+  return {
+    ...draft,
+    vendorId: vendor.id,
+    vendorName: vendor.displayName || vendor.legalName || draft.vendorName,
+    vendorCode: vendor.vendorCode || draft.vendorCode,
+    vendorGstin: vendor.gstin || draft.vendorGstin,
+    vendorPan: vendor.pan || draft.vendorPan,
+    vendorAddress: mapVendorAddress(vendor) || draft.vendorAddress,
+    placeOfSupply: vendor.state || draft.placeOfSupply,
+    taxRegime: vendor.taxTreatment || draft.taxRegime,
+    beneficiaryName: vendor.displayName || vendor.legalName || draft.beneficiaryName,
+    bankName: vendor.bankName || draft.bankName,
+    bankAccountMasked: vendor.accountNumberMasked || draft.bankAccountMasked,
+    ifsc: vendor.ifsc || draft.ifsc,
+    bankBranch: vendor.bankBranch || draft.bankBranch,
+    paymentTerms: vendor.paymentTermsDays ? `Net ${vendor.paymentTermsDays}` : draft.paymentTerms,
+    paymentMode: vendor.preferredPaymentMode || draft.paymentMode,
+  };
+}
+
+function deriveDraftFromPurchaseOrder(draft: InvoiceDraft, po: PurchaseOrder, goodsReceipts: GoodsReceipt[]) {
+  const grn = goodsReceipts.find((receipt) => normalizeKey(receipt.poNumber) === normalizeKey(po.poNumber));
+  const totalQuantity = po.items.reduce((sum, item) => sum + item.quantityOrdered, 0);
+  const lineItem = po.items[0] || { itemDescription: draft.itemDescription, quantityOrdered: 0, unitPrice: 0, skuCode: draft.lineItemCode };
+  const extractedGst = Number(String(po.gstDetails).match(/(\d+(?:\.\d+)?)/)?.[1]) || 18;
+  const gstRate = po.gstRate ?? extractedGst;
+  const resolvedQuantity = grn?.quantityReceived ?? lineItem.quantityOrdered ?? totalQuantity;
+  return {
+    ...draft,
+    vendorId: po.vendorId,
+    vendorName: po.vendorName,
+    vendorGstin: po.vendorGstDetails,
+    vendorAddress: po.vendorAddress || draft.vendorAddress,
+    paymentTerms: po.paymentTerms,
+    currency: po.currency || draft.currency,
+    department: po.departmentName || draft.department,
+    costCenter: po.costCenter || draft.costCenter,
+    projectCode: po.projectCode || draft.projectCode,
+    glCode: po.glCode || draft.glCode,
+    lineItemCode: lineItem.skuCode || draft.lineItemCode,
+    itemDescription: lineItem.itemDescription || draft.itemDescription,
+    hsnSac: po.sacCode || draft.hsnSac,
+    unit: po.unit || draft.unit,
+    unitPrice: String(lineItem.unitPrice || 0),
+    gstRate: String(gstRate),
+    subtotal: String(po.subtotal),
+    taxableAmount: String(po.subtotal),
+    cgstAmount: String(Math.round(po.taxAmount / 2)),
+    sgstAmount: String(Math.round(po.taxAmount / 2)),
+    igstAmount: '0',
+    grossAmount: String(po.finalTotalAmount),
+    poDate: po.poDate,
+    grnNumber: grn?.grnNumber || draft.grnNumber,
+    grnDate: grn?.grnDate || draft.grnDate,
+    quantity: String(resolvedQuantity),
+  };
+}
+
+function evaluateDraft(
+  draft: InvoiceDraft,
+  items: WorkflowItem[],
+  vendors: Vendor[],
+  purchaseOrders: PurchaseOrder[],
+  goodsReceipts: GoodsReceipt[],
+): InvoiceValidationResult {
+  return validateManualInvoice(
+    toManualDraft(draft),
+    items,
+    items.map((item) => item.invoiceNumber),
+    vendors,
+    purchaseOrders,
+    goodsReceipts,
+  );
+}
+
 function toManualDraft(draft: InvoiceDraft): ManualInvoiceDraft {
   return {
     invoiceNumber: draft.invoiceNumber,
     invoiceDate: draft.invoiceDate,
+    dueDate: draft.dueDate,
+    vendorId: draft.vendorId,
     vendorName: draft.vendorName,
+    vendorCode: draft.vendorCode,
     vendorGstin: draft.vendorGstin,
-    invoiceAmount: numberValue(draft.taxableAmount || draft.subtotal),
+    vendorPan: draft.vendorPan,
+    invoiceAmount: numberValue(draft.grossAmount),
     taxAmount: totalTax(draft),
     gstInformation: `GST ${draft.gstRate}%`,
+    gstRate: numberValue(draft.gstRate),
     poNumber: draft.poNumber,
     grnNumber: draft.grnNumber,
-    challanNumber: draft.challanNumber,
+    grnDate: draft.grnDate,
     itemDetails: draft.itemDescription,
     quantity: numberValue(draft.quantity),
     price: numberValue(draft.unitPrice),
+    subtotal: numberValue(draft.subtotal),
+    taxableAmount: numberValue(draft.taxableAmount),
+    cgstAmount: numberValue(draft.cgstAmount),
+    sgstAmount: numberValue(draft.sgstAmount),
+    igstAmount: numberValue(draft.igstAmount),
+    tdsAmount: numberValue(draft.tdsAmount),
+    freightAmount: numberValue(draft.freightAmount),
+    roundOff: numberValue(draft.roundOff),
+    grossAmount: numberValue(draft.grossAmount),
     terms: draft.paymentTerms,
     remarks: draft.remarks,
     paymentMode: draft.paymentMode as WorkflowItem['paymentMode'],
@@ -215,14 +338,41 @@ function badgeForStatus(status: WorkflowItem['status']) {
   return 'cyan' as const;
 }
 
-function Field({ field, value, onChange }: { field: FieldDef; value: string; onChange: (value: string) => void }) {
+function Field({ field, value, onChange, error }: { field: FieldDef; value: string; onChange: (value: string) => void; error?: string }) {
+  const isSearchable = field.options && ['vendorName', 'poNumber'].includes(field.key);
+  if (field.options && isSearchable) {
+    const datalistId = `${field.key}-options`;
+    return (
+      <label className="text-sm text-slate-300">
+        {field.label}
+        <input
+          disabled={field.derived}
+          required={field.required !== false && !field.derived}
+          type={field.type || 'text'}
+          list={datalistId}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.derived ? 'Auto-filled from PO/GRN' : `Search or select ${field.label.toLowerCase()}`}
+          className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}
+        />
+        <datalist id={datalistId}>
+          {field.options.map((option) => <option key={option} value={option} />)}
+        </datalist>
+        {field.derived && <div className="mt-1 text-[10px] text-slate-500 italic">Auto-filled from workflow linkage</div>}
+        {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
+      </label>
+    );
+  }
+
   if (field.options) {
     return (
       <label className="text-sm text-slate-300">
         {field.label}
-        <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30">
+        <select disabled={field.derived} value={value} onChange={(event) => onChange(event.target.value)} className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}>
           {field.options.map((option) => <option key={option}>{option}</option>)}
         </select>
+        {field.derived && <div className="mt-1 text-[10px] text-slate-500 italic">Auto-filled from workflow linkage</div>}
+        {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
       </label>
     );
   }
@@ -231,27 +381,67 @@ function Field({ field, value, onChange }: { field: FieldDef; value: string; onC
     <label className="text-sm text-slate-300">
       {field.label}
       <input
-        required={field.required !== false}
+        disabled={field.derived}
+        required={field.required !== false && !field.derived}
         type={field.type || 'text'}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30"
+        className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}
       />
+      {field.derived && <div className="mt-1 text-[10px] text-slate-500 italic">Auto-filled from workflow linkage</div>}
+      {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
     </label>
   );
 }
 
 function ValidationResult({ result }: { result: InvoiceValidationResult }) {
+  const CheckItem = ({ label, passed, warning }: { label: string; passed: boolean; warning?: boolean }) => (
+    <div className="flex items-center gap-2 text-xs">
+      {passed ? (
+        <span className="text-emerald-400">✓</span>
+      ) : warning ? (
+        <span className="text-amber-400">⚠</span>
+      ) : (
+        <span className="text-rose-400">✗</span>
+      )}
+      <span className={passed ? 'text-slate-300' : 'text-slate-100'}>{label}</span>
+    </div>
+  );
+
   return (
-    <div className={`rounded-lg border p-4 ${result.valid ? result.status === 'Matched' ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-amber-500/20 bg-amber-500/10' : 'border-rose-500/20 bg-rose-500/10'}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        {result.valid ? result.status === 'Matched' ? <CheckCircle2 size={18} className="text-emerald-300" /> : <AlertTriangle size={18} className="text-amber-300" /> : <XCircle size={18} className="text-rose-300" />}
-        <div className="font-semibold text-white">{result.valid ? result.status : 'Validation failed'}</div>
-        {result.valid && <Badge tone={matchBadgeTone(result.status)}>{result.status === 'Matched' ? 'Ready for approval' : 'Review required'}</Badge>}
+    <div className={`rounded-lg border p-4 shadow-glow ${result.valid ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-rose-500/20 bg-rose-500/5'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-3">
+        <div className="flex items-center gap-2">
+          {result.valid ? <CheckCircle2 size={18} className="text-emerald-400" /> : <XCircle size={18} className="text-rose-400" />}
+          <div className="font-semibold text-white">Validation {result.status}</div>
+          <Badge tone={matchBadgeTone(result.status)}>{result.status}</Badge>
+        </div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-500">
+          {result.errors.length} Errors • {result.variances.length} Variances
+        </div>
       </div>
-      {result.errors.length > 0 && <div className="mt-3 grid gap-2">{result.errors.map((error) => <div key={error} className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100">{error}</div>)}</div>}
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <CheckItem label="Vendor verified" passed={result.checks.vendorVerified} />
+          <CheckItem label="PO matched" passed={result.checks.poMatched} />
+          <CheckItem label="GRN matched" passed={result.checks.grnMatched} />
+          <CheckItem label="Tax validated" passed={result.checks.taxValidated} />
+          <CheckItem label="Amount validated" passed={result.checks.amountValidated} />
+        </div>
+
+        <div className="rounded-lg bg-slate-950/40 p-3">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Approval Readiness</div>
+          <div className="text-sm font-medium text-slate-200">
+            {result.valid ? 'Ready for approval workflow submission.' : 'Submission blocked. Fix critical errors.'}
+          </div>
+        </div>
+      </div>
+
+      {result.errors.length > 0 && <div className="mt-4 grid gap-2">{result.errors.map((error) => <div key={error} className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">{error}</div>)}</div>}
+
       {result.variances.length > 0 && (
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
           {result.variances.map((variance, index) => (
             <div key={`${variance.field}-${index}`} className="rounded-lg border border-amber-400/20 bg-slate-950/35 p-3 text-sm">
               <div className="font-semibold text-amber-100">{variance.field} mismatch</div>
@@ -287,7 +477,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
     account: draft.bankAccountMasked,
     poNumber: draft.poNumber,
     grnNumber: draft.grnNumber,
-    challanNumber: draft.challanNumber,
     itemDescription: draft.itemDescription,
     quantity: numberValue(draft.quantity),
     unitPrice: numberValue(draft.unitPrice),
@@ -307,7 +496,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
     account: '',
     poNumber: item?.poNumber || '',
     grnNumber: item?.grnNumber || '',
-    challanNumber: item?.challanNumber || '',
     itemDescription: 'Goods / service as per PO',
     quantity: item?.grnQty || 0,
     unitPrice: item && item.grnQty ? item.invoiceAmount / item.grnQty : 0,
@@ -328,7 +516,6 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
         ['Vendor name', invoice.vendorName],
         ['PO reference number', invoice.poNumber],
         ['GRN reference number', invoice.grnNumber],
-        ['Delivery challan number', invoice.challanNumber],
         ['Quantity', invoice.quantity],
         ['Unit price', money(invoice.unitPrice)],
         ['Taxable amount', money(invoice.taxableAmount)],
@@ -390,7 +577,7 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
             <tr><th>GST</th><td class="right">${money(invoice.gst)}</td></tr>
             <tr><th>Gross total</th><td class="right"><strong>${money(invoice.gross)}</strong></td></tr>
           </table>
-          <p>GRN: ${invoice.grnNumber} | Delivery Challan: ${invoice.challanNumber}</p>
+          <p>GRN: ${invoice.grnNumber}</p>
           ${fullFieldRows}
         </body>
       </html>
@@ -429,7 +616,7 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
                 <tbody><tr><td className="border border-slate-200 p-2">{invoice.itemDescription}</td><td className="border border-slate-200 p-2 text-right">{invoice.quantity}</td><td className="border border-slate-200 p-2 text-right">{money(invoice.unitPrice)}</td><td className="border border-slate-200 p-2 text-right">{money(invoice.taxableAmount)}</td><td className="border border-slate-200 p-2 text-right">{money(invoice.gst)}</td><td className="border border-slate-200 p-2 text-right font-bold">{money(invoice.gross)}</td></tr></tbody>
               </table>
             </div>
-            <div className="mt-5 text-sm">GRN: {invoice.grnNumber} | Delivery Challan: {invoice.challanNumber}</div>
+            <div className="mt-5 text-sm">GRN: {invoice.grnNumber}</div>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               {detailGroups.map((group) => (
                 <section key={group.title} className="rounded border border-slate-200 p-3">
@@ -457,10 +644,13 @@ export default function InvoicesPage() {
   const toast = useToast();
   const { vendors } = useVendors();
   const { items, save } = useWorkflowItems();
+  const { items: purchaseOrders } = usePurchaseOrders();
+  const { items: goodsReceipts } = useGoodsReceipts();
   const [activeView, setActiveView] = useState<InvoiceView>('create');
   const [mode, setMode] = useState<IntakeMode>('OCR');
   const [draft, setDraft] = useState<InvoiceDraft>(defaultDraft);
   const [result, setResult] = useState<InvoiceValidationResult | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [ocrDiscrepancies, setOcrDiscrepancies] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -491,7 +681,11 @@ export default function InvoicesPage() {
   const currentPage = Math.min(page, totalPages);
   const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  function autoTotals(nextDraft: InvoiceDraft) {
+  const vendorOptions = useMemo(() => ['Select vendor', ...vendors.map(v => v.displayName || v.legalName)], [vendors]);
+  const poOptions = useMemo(() => ['Select PO', ...purchaseOrders.map(p => p.poNumber)], [purchaseOrders]);
+
+
+  function calculateAutoTotals(nextDraft: InvoiceDraft) {
     const quantity = numberValue(nextDraft.quantity);
     const price = numberValue(nextDraft.unitPrice);
     const subtotal = quantity * price;
@@ -510,12 +704,49 @@ export default function InvoicesPage() {
     };
   }
 
-  function handleField(key: string, value: string) {
-    const nextDraft = { ...draft, [key]: value };
-    if (['quantity', 'unitPrice', 'discount', 'gstRate', 'freightAmount', 'roundOff', 'tdsAmount'].includes(key)) {
-      Object.assign(nextDraft, autoTotals(nextDraft));
+  function handleField(key: string, value: string | 'Select vendor' | 'Select PO' | 'Select GRN') {
+    if (value === 'Select vendor' || value === 'Select PO' || value === 'Select GRN') return;
+    const rawValue = String(value).trim();
+    let nextDraft = { ...draft, [key]: rawValue };
+
+    if (key === 'vendorName') {
+      const vendor = findVendor(vendors, rawValue); // Find vendor by name
+      if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor); // Auto-fill vendor details
     }
+
+    if (key === 'poNumber') {
+      // Clear GRN related fields if PO is cleared or not found
+      if (!rawValue) {
+        nextDraft = { ...nextDraft, grnNumber: '', grnDate: '', challanNumber: '', challanDate: '' };
+      }
+
+      const po = findPurchaseOrder(purchaseOrders, rawValue);
+      if (po) {
+        const grn = goodsReceipts.find(g => normalizeKey(g.poNumber) === normalizeKey(po.poNumber));
+        
+        // Auto-fill all PO and linked GRN data
+        nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po, goodsReceipts);
+        
+        // Auto-fill vendor details from PO's vendor reference
+        const vendor = vendors.find(v => v.id === po.vendorId || v.vendorCode === po.vendorReferenceId) || findVendor(vendors, po.vendorName);
+        if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor);
+        
+        // Recalculate totals after all fields are updated
+        Object.assign(nextDraft, calculateAutoTotals(nextDraft));
+      } else {
+        setGrnWarning(null);
+      }
+    }
+
+    if (['quantity', 'unitPrice', 'discount', 'gstRate', 'freightAmount', 'roundOff', 'tdsAmount'].includes(key)) {
+      Object.assign(nextDraft, calculateAutoTotals(nextDraft));
+    }
+
     setDraft(nextDraft);
+    setFieldErrors({});
+    if (['vendorName', 'poNumber', 'grnNumber', 'quantity', 'unitPrice', 'gstRate'].includes(key)) {
+      setResult(evaluateDraft(nextDraft, items, vendors, purchaseOrders, goodsReceipts));
+    }
   }
 
   function runOcr(fileName?: string) {
@@ -530,6 +761,7 @@ export default function InvoicesPage() {
       receiptDate: today,
       sourceFileName: fileName || 'vendor-invoice-upload.pdf',
       ocrConfidence: '87',
+      vendorId: vendor?.id || '',
       vendorName: vendor?.displayName || vendor?.legalName || 'Aster Distributor',
       vendorCode: vendor?.vendorCode || '',
       vendorGstin: vendor?.gstin || '27ABCDE1234F1Z5',
@@ -564,20 +796,13 @@ export default function InvoicesPage() {
   }
 
   function validateCurrent() {
-    const validation = validateManualInvoice(toManualDraft(draft), items, items.map((item) => item.invoiceNumber), vendors);
-    const vendor = vendors.find((entry) => [entry.legalName, entry.displayName].some((name) => name?.trim().toLowerCase() === draft.vendorName.trim().toLowerCase()));
-    if (vendor && vendor.gstin && vendor.gstin !== draft.vendorGstin) {
-      validation.variances.push({ field: 'GST', expected: vendor.gstin, actual: draft.vendorGstin, severity: 'critical' });
-      validation.status = 'Variance Detected';
-    }
-    if (vendor && vendor.ifsc && vendor.ifsc !== draft.ifsc) {
-      validation.variances.push({ field: 'Vendor', expected: `IFSC ${vendor.ifsc}`, actual: `IFSC ${draft.ifsc}`, severity: 'critical' });
-      validation.status = 'Variance Detected';
-    }
+    const validation = evaluateDraft(draft, items, vendors, purchaseOrders, goodsReceipts);
     setResult(validation);
+    setFieldErrors(validation.fieldErrors);
+
     toast({
       type: validation.valid ? validation.status === 'Matched' ? 'success' : 'warning' : 'error',
-      title: validation.valid ? validation.status : 'Validation failed',
+      title: validation.valid ? `Validation ${validation.status}` : 'Validation failed',
       description: validation.valid ? 'Date, amount, GST, bank, vendor, PO, GRN, and challan checks finished.' : validation.errors[0] || 'Fix required invoice fields.',
     });
     return validation;
@@ -585,7 +810,14 @@ export default function InvoicesPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const validation = validateCurrent();
+    const validation = evaluateDraft(draft, items, vendors, purchaseOrders, goodsReceipts);
+    setResult(validation);
+    setFieldErrors(validation.fieldErrors);
+
+    if (!validation.valid) {
+      toast({ type: 'error', title: 'Submission Blocked', description: 'Critical validation errors must be resolved before submitting.' });
+      return;
+    }
     if (!validation.valid) return;
 
     const manualDraft = toManualDraft(draft);
@@ -603,12 +835,12 @@ export default function InvoicesPage() {
       invoiceAmount: manualDraft.invoiceAmount,
       gstAmount: manualDraft.taxAmount,
       approvalLevel: approvalLevelFor(manualDraft.invoiceAmount),
-      status: validation.status === 'Matched' ? 'Submitted' : 'On Hold',
-      matchStatus: validation.status === 'Matched' ? 'Matched' : 'Variance',
+      status: validation.status === 'Success' ? 'Submitted' : 'On Hold',
+      matchStatus: validation.status === 'Success' ? 'Matched' : 'Variance',
       paymentMode: manualDraft.paymentMode,
-      paymentStatus: validation.status === 'Matched' ? 'Not Ready' : 'Hold',
+      paymentStatus: validation.status === 'Success' ? 'Not Ready' : 'Hold',
       erpSyncStatus: 'Pending',
-      lastActionBy: `${mode} Invoice Intake`,
+      lastActionBy: `${mode} Invoice Intake (Validated)`,
       updatedAt: today,
     };
     save([nextItem, ...items]);
@@ -682,7 +914,15 @@ export default function InvoicesPage() {
             <section key={group.title} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
               <h3 className="text-sm font-semibold text-white">{group.title}</h3>
               <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-                {group.fields.map((field) => <Field key={field.key} field={field} value={draft[field.key] || ''} onChange={(value) => handleField(field.key, value)} />)}
+                {group.fields.map((field) => {
+                  const enhancedField = { ...field };
+                  if (field.key === 'vendorName') enhancedField.options = vendorOptions;
+                  if (field.key === 'poNumber') enhancedField.options = poOptions;
+                  
+                  return (
+                    <Field key={field.key} field={enhancedField} value={draft[field.key] || ''} onChange={(value) => handleField(field.key, value)} error={fieldErrors[field.key]} />
+                  );
+                })}
               </div>
             </section>
           ))}

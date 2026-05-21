@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState, useEffect } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Badge, Panel, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/components/toast';
@@ -10,7 +10,9 @@ import { createEmptyLineItem, normalizePurchaseOrder, statusTone, validatePurcha
 import { newPurchaseOrderDraft, usePurchaseOrders } from '@/lib/purchase-order-store';
 import { money } from '@/lib/utils';
 import type { PurchaseOrder, PurchaseOrderLineItem, Vendor } from '@/lib/types';
-import { CheckCircle2, Eye, FileDown, FileText, ListChecks, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, Eye, FileText, ListChecks, Pencil, Plus, RefreshCw, Save, Search, Trash2, Upload, XCircle } from 'lucide-react';
+import { clearDraft, readDraft, useFormDraftAutoSave, writeDraft } from '@/lib/form-draft-store';
+
 
 type FieldErrors = Partial<Record<keyof PurchaseOrder | 'items', string>>;
 type PurchaseOrderView = 'create' | 'list';
@@ -132,6 +134,11 @@ export default function PurchaseOrdersPage() {
 
   const [poUploadFile, setPoUploadFile] = useState('');
   const [editingId, setEditingId] = useState<string | undefined>();
+  const draftAutoSaveKey = useMemo(() => {
+    const modePart = editingId ? `edit:${editingId}` : 'create';
+    return `po:auto-save:${modePart}`;
+  }, [editingId]);
+
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [query, setQuery] = useState('');
@@ -142,7 +149,27 @@ export default function PurchaseOrdersPage() {
   const normalizedDraft = useMemo(() => normalizePurchaseOrder(draft), [draft]);
   const totalValue = useMemo(() => items.reduce((sum, po) => sum + po.finalTotalAmount, 0), [items]);
 
+  useEffect(() => {
+    // Restore auto-saved PO form state when returning to this page.
+    // We restore the 'create' bucket by default (edits have their own key).
+    const createSaved = readDraft<{
+      draft: PurchaseOrder;
+      poUploadFile: string;
+      editingId?: string;
+    }>('po:auto-save:create');
+
+
+    if (!createSaved) return;
+
+    if (createSaved.editingId) setEditingId(createSaved.editingId);
+    setDraft(createSaved.draft);
+    setPoUploadFile(createSaved.poUploadFile || '');
+    setActiveView('create');
+  }, []);
+
+
   const filtered = useMemo(() => {
+
     const search = query.trim().toLowerCase();
     const searched = items.filter((po) => {
       const matchesSearch = !search || JSON.stringify(po).toLowerCase().includes(search);
@@ -158,9 +185,22 @@ export default function PurchaseOrdersPage() {
     });
   }, [items, query, sort, statusFilter]);
 
+
   function patchDraft(patch: Partial<PurchaseOrder>) {
     setDraft((current) => ({ ...current, ...patch }));
   }
+
+  useEffect(() => {
+    // Persist PO draft in the background so navigation doesn't wipe entered values.
+    // Only saves in the create view (including edit mode when editingId is set).
+    writeDraft(draftAutoSaveKey, {
+
+      draft,
+      poUploadFile,
+      editingId,
+    });
+  }, [draftAutoSaveKey, draft, poUploadFile, editingId]);
+
 
   function updateLine(id: string, patch: Partial<PurchaseOrderLineItem>) {
     setDraft((current) => ({
@@ -245,6 +285,10 @@ export default function PurchaseOrdersPage() {
       title: editingId ? 'PO Updated' : 'PO Created',
       description: `${response.item.poNumber} is stored with matching-ready quantity, price, GST, and terms fields.`,
     });
+    clearDraft(draftAutoSaveKey);
+    // Also clear generic create bucket to avoid stale restores.
+    clearDraft('po:auto-save:create');
+
     setDraft(emptyDraft());
     setEditingId(undefined);
     setPoUploadFile('');
@@ -253,10 +297,16 @@ export default function PurchaseOrdersPage() {
     setFieldErrors({});
   }
 
+
   function edit(po: PurchaseOrder) {
+    // Start edit mode with fresh state from selected PO.
+    clearDraft(draftAutoSaveKey);
+    clearDraft('po:auto-save:create');
+
     setEditingId(po.id);
     setDraft(cloneDraft(po));
     setActiveView('create');
+
     setErrors([]);
     setFieldErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -497,8 +547,8 @@ export default function PurchaseOrdersPage() {
                     <div className="flex flex-wrap gap-2">
                       <Link href={`/purchase-orders/${encodeURIComponent(po.id)}`} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-cyan-200 transition hover:bg-white/10" aria-label={`View ${po.poNumber}`}><Eye size={16} /></Link>
                       <button onClick={() => edit(po)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Edit ${po.poNumber}`}><Pencil size={16} /></button>
-                      <button onClick={() => window.print()} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Print ${po.poNumber}`}><Printer size={16} /></button>
-                      <button onClick={() => window.print()} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10" aria-label={`Export ${po.poNumber}`}><FileDown size={16} /></button>
+                      
+                      
                       {isAdmin && <button onClick={() => deletePo(po)} className="grid h-9 w-9 place-items-center rounded-lg border border-rose-400/30 bg-rose-400/10 text-rose-200 transition hover:bg-rose-400/15" aria-label={`Delete ${po.poNumber}`}><Trash2 size={16} /></button>}
                     </div>
                   </td>

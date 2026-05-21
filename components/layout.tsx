@@ -195,7 +195,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
               <ThemeButton theme={theme} onToggle={toggleTheme} />
             </div>
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white">ProcureFlow X</h1>
+            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white">ERP-ARCIAL</h1>
             <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
               Choose a role and enter the AP workflow. No demo credentials are exposed on screen.
             </p>
@@ -275,10 +275,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-between border-b border-white/10 bg-slate-950/80 px-3 py-3 backdrop-blur-xl lg:hidden">
           <div className="flex items-center gap-3">
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-orange-300 via-cyan-300 to-emerald-300 text-slate-950 font-black">PX</div>
-            <div>
-              <div className="text-sm font-semibold text-white">ProcureFlow X</div>
-              <div className="text-xs text-slate-400">{activeUser.role}</div>
-            </div>
+<div>
+                  <div className="text-sm font-semibold text-white">ERP-ARCIAL</div>
+                  <div className="text-xs text-slate-400">{activeUser.role}</div>
+                </div>
           </div>
           <div className="flex items-center gap-2">
             <ThemeButton theme={theme} onToggle={toggleTheme} />
@@ -301,8 +301,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="rounded-lg border border-white/10 bg-white/5 p-4 shadow-glow">
               <div className="flex items-center gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-orange-300 via-cyan-300 to-emerald-300 text-slate-950 font-black">PX</div>
-                <div>
-                  <div className="text-base font-semibold">ProcureFlow X</div>
+<div>
+                  <div className="text-base font-semibold">ERP-ARCIAL</div>
                   <div className="text-xs text-slate-400">Vendor AP automation</div>
                 </div>
               </div>
@@ -359,7 +359,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               })}
             </nav>
 
-            <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-4">
+<div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Signed in as</div>

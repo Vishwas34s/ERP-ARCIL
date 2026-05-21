@@ -1,6 +1,8 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { clearDraft, readDraft, useFormDraftAutoSave } from '@/lib/form-draft-store';
+
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Badge, Panel } from '@/components/ui';
@@ -105,13 +107,31 @@ export default function CreatePaymentPage() {
   const { create } = usePaymentRecords();
   const [form, setForm] = useState<PaymentForm>(emptyForm);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoiceId);
+  const paymentDraftKey = useMemo(() => 'payment:auto-save:create', []);
+
   const readyItems = useMemo(() => items.filter((item) => item.paymentStatus === 'Ready' || item.status === 'Queued for Payment'), [items]);
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedInvoiceId), [items, selectedInvoiceId]);
   const existingPending = items.filter((item) => item.paymentStatus === 'Ready' || item.status === 'Queued for Payment').length;
 
   useEffect(() => {
+    // Restore auto-saved payment draft.
+    const saved = readDraft<{ form: PaymentForm; selectedInvoiceId: string }>(paymentDraftKey);
+    if (!saved) return;
+    setForm(saved.form);
+    setSelectedInvoiceId(saved.selectedInvoiceId ?? invoiceId);
+  }, [paymentDraftKey]);
+
+  useEffect(() => {
     setSelectedInvoiceId(invoiceId);
   }, [invoiceId]);
+
+  useFormDraftAutoSave({
+    draftKey: paymentDraftKey,
+    enabled: true,
+    debounceMs: 450,
+    draft: { form, selectedInvoiceId },
+  });
+
 
   useEffect(() => {
     if (selectedItem) {
@@ -194,8 +214,11 @@ export default function CreatePaymentPage() {
     }
 
     toast({ type: 'success', title: 'Payment Created', description: `A payment instruction for ${form.invoiceNumber} is now recorded.` });
+    clearDraft(paymentDraftKey);
+    setForm(emptyForm);
     router.push('/payments');
   }
+
 
   return (
     <div className="space-y-5">

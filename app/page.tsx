@@ -107,7 +107,7 @@ export default function Dashboard() {
     const q = query.trim().toLowerCase();
     return visibleItems.filter((item) => {
       const byStatus = statusFilter === 'All' || item.status === statusFilter || item.paymentStatus === statusFilter || item.matchStatus === statusFilter;
-      const phrase = `${item.invoiceNumber} ${item.vendorName} ${item.poNumber} ${item.grnNumber} ${item.approvalLevel} ${item.status} ${item.paymentStatus}`.toLowerCase();
+      const phrase = `${item.invoiceNumber} ${item.vendorName} ${item.poNumber} ${item.grnReference} ${item.approvalLevel} ${item.status} ${item.paymentStatus}`.toLowerCase();
       return byStatus && (!q || phrase.includes(q));
     });
   }, [query, statusFilter, visibleItems]);
@@ -280,7 +280,7 @@ export default function Dashboard() {
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item.id} className="hover:bg-white/[0.03]">
-                  <td className="border-b border-white/5 px-3 py-4 font-medium text-white">{item.invoiceNumber}<div className="text-xs text-slate-500">{item.poNumber} / {item.grnNumber}</div></td>
+                  <td className="border-b border-white/5 px-3 py-4 font-medium text-white">{item.invoiceNumber}<div className="text-xs text-slate-500">{item.poNumber} / {item.grnReference}</div></td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.vendorName}</td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(item.invoiceAmount)}<div className="text-xs text-slate-500">GST {money(item.gstAmount)}</div></td>
                   <td className="border-b border-white/5 px-3 py-4"><Badge tone={item.approvalLevel === 'L1' ? 'cyan' : item.approvalLevel === 'L2' ? 'violet' : 'amber'}>{item.approvalLevel}</Badge></td>

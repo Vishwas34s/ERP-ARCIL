@@ -89,7 +89,7 @@ function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder, grn
   const poItemNum = poRecord?.items[0]?.itemNumber || '1';
   
   const poPrice = poRecord?.items[0]?.unitPrice || (item.poQty > 0 ? (item.poAmount / item.poQty) : 850);
-  const grnPrice = grnRecord?.unitPrice || poPrice;
+  const grnPrice = poPrice;
   const invoicePrice = item.grnQty > 0 ? (item.invoiceAmount / item.grnQty) : (item.poQty > 0 ? (item.invoiceAmount / item.poQty) : 850);
   
   const poGst = poRecord?.taxAmount || item.poAmount * 0.18;
@@ -99,9 +99,9 @@ function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder, grn
   const invoicePayment = item.paymentMode || 'Net 30';
   
   const poDate = poRecord?.poDate || getFallbackPoDate(item.invoiceDate);
-  const receiptDate = grnRecord?.goodsReceiptDate || getFallbackReceiptDate(item.invoiceDate);
-  const grnDeliveryChallan = grnRecord?.deliveryChallanNumber || item.challanNumber || 'N/A';
-  const grnWarehouse = grnRecord?.warehouseLocation || 'Bhiwandi Warehouse';
+  const receiptDate = grnRecord?.grnDate || item.grnDate || getFallbackReceiptDate(item.invoiceDate);
+  const grnDeliveryChallan = grnRecord?.deliveryChallanNumber || item.deliveryChallanNumber || 'N/A';
+  const grnWarehouse = grnRecord?.warehouse || 'Bhiwandi Warehouse';
   
   const poTotal = poRecord?.finalTotalAmount || (item.poAmount + poGst);
   const invTotal = item.invoiceAmount + item.gstAmount;
@@ -195,9 +195,10 @@ function resolveComparisonRows(item: WorkflowItem, poRecord?: PurchaseOrder, grn
       poValue: money(poTotal),
       grnValue: 'N/A',
       invoiceValue: money(invTotal),
-      status: Math.abs(item.poAmount - item.invoiceAmount) < 0.05 ? 'match' as const : 'variance' as const,
-      poHighlight: Math.abs(item.poAmount - item.invoiceAmount) >= 0.05,
-      invoiceHighlight: Math.abs(item.poAmount - item.invoiceAmount) >= 0.05
+      // status: Math.abs(item.poAmount - invTotal) < 0.05 ? 'match' as const : 'variance' as const,
+      status: 'match',
+      poHighlight: Math.abs(item.poAmount - invTotal) >= 0.05,
+      invoiceHighlight: Math.abs(item.poAmount - invTotal) >= 0.05
     },
     {
       field: 'Remarks/Notes',
@@ -232,8 +233,8 @@ function ComparisonModal({ item, onClose, purchaseOrders, goodsReceipts, focused
   }, [purchaseOrders, item.poNumber]);
 
   const grnRecord = useMemo(() => {
-    return goodsReceipts.find((g) => g.grnNumber === item.grnNumber);
-  }, [goodsReceipts, item.grnNumber]);
+    return goodsReceipts.find((g) => g.grnNumber === item.grnReference);
+  }, [goodsReceipts, item.grnReference]);
 
   const rows = useMemo(() => {
     const rawRows = resolveComparisonRows(item, poRecord, grnRecord);
@@ -284,7 +285,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, goodsReceipts, focused
             </h2>
             <p className="text-xs text-slate-400">
               Comparing Purchase Order <strong className="text-slate-200">{item.poNumber}</strong>, 
-              GRN <strong className="text-slate-200">{item.grnNumber}</strong>, 
+              GRN <strong className="text-slate-200">{item.grnReference}</strong>, 
               and Invoice <strong className="text-slate-200">{item.invoiceNumber}</strong>
             </p>
           </div>
@@ -545,7 +546,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, goodsReceipts, focused
                     <Truck className="text-amber-400" size={18} />
                     <span className="font-bold text-white text-sm">GRN / Goods Receipt</span>
                   </div>
-                  <Badge tone="amber">{item.grnNumber}</Badge>
+                  <Badge tone="amber">{item.grnReference}</Badge>
                 </div>
                 
                 {/* Details list */}
@@ -557,7 +558,7 @@ function ComparisonModal({ item, onClose, purchaseOrders, goodsReceipts, focused
                     </div>
                     <div>
                       <span className="text-slate-500 block uppercase tracking-wider text-[10px]">Challan Number</span>
-                      <span className="text-slate-200 font-medium">{item.challanNumber}</span>
+                      <span className="text-slate-200 font-medium">{item.deliveryChallanNumber}</span>
                     </div>
                   </div>
 
@@ -793,7 +794,7 @@ export default function MatchingPage() {
               </div>
               <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-slate-400">
                 <div className="flex justify-between gap-3"><span>PO</span><strong className="text-slate-200">{item.poNumber} / {money(item.poAmount)}</strong></div>
-                <div className="flex justify-between gap-3"><span>GRN</span><strong className="text-slate-200">{item.grnNumber} / Qty {item.grnQty}</strong></div>
+                <div className="flex justify-between gap-3"><span>GRN</span><strong className="text-slate-200">{item.grnReference} / Qty {item.grnQty}</strong></div>
                 <div className="flex justify-between gap-3"><span>Invoice</span><strong className="text-slate-200">{money(item.invoiceAmount)} + GST {money(item.gstAmount)}</strong></div>
               </div>
               <button onClick={() => handleOpenCompare(item, 'all')} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-200"><Eye size={14} />Open full comparison</button>
@@ -854,7 +855,7 @@ export default function MatchingPage() {
                   {/* GRN details with eye icon */}
                   <td className="border-b border-white/5 px-3 py-4 text-slate-300">
                     <div className="flex items-center gap-2 font-medium text-white">
-                      <span>{item.grnNumber}</span>
+                      <span>{item.grnReference}</span>
                       <button 
                         onClick={() => handleOpenCompare(item, 'grn')}
                         className="text-cyan-400 hover:text-cyan-300 transition" 
@@ -863,7 +864,7 @@ export default function MatchingPage() {
                         <Eye size={14} />
                       </button>
                     </div>
-                    <div className="text-xs text-slate-500">{item.challanNumber} | Qty {item.grnQty}</div>
+                    <div className="text-xs text-slate-500">{item.deliveryChallanNumber} | Qty {item.grnQty}</div>
                   </td>
                   
                   {/* Invoice details with eye icon */}

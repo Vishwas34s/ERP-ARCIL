@@ -73,13 +73,15 @@ export function normalizePurchaseOrder(po: PurchaseOrder): PurchaseOrder {
       itemNumber: item.itemNumber || String(index + 1),
       quantityOrdered,
       unitPrice,
-      totalPrice: quantityOrdered * unitPrice,
+      totalPrice: Number((quantityOrdered * unitPrice).toFixed(2)),
     };
   });
-  const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
-  const taxAmount = Math.max(0, Number(po.taxAmount) || 0);
+  const subtotal = Number(items.reduce((sum, item) => sum + item.totalPrice, 0).toFixed(2));
   const discount = Math.max(0, Number(po.discount) || 0);
-  const gstRate = Number(po.gstRate) || Number(String(po.gstDetails).match(/(\d+(?:\.\d+)?)/)?.[1]) || 18;
+  const taxableAmount = Math.max(0, subtotal - discount);
+  const extractedGst = Number(String(po.gstDetails).match(/(\d+(?:\.\d+)?)/)?.[1]) || 18;
+  const gstRate = Number(po.gstRate) || extractedGst;
+  const taxAmount = Number((taxableAmount * (gstRate / 100)).toFixed(2));
   const expectedDeliveryDate = po.expectedDeliveryDate || po.intendedDeliveryDate;
 
   return {
@@ -94,7 +96,7 @@ export function normalizePurchaseOrder(po: PurchaseOrder): PurchaseOrder {
     deliveryChallanDate: po.deliveryChallanDate || po.poDate,
     grnReference: String(po.grnReference || '').trim(),
     grnDate: po.grnDate || po.poDate,
-    finalTotalAmount: Math.max(0, subtotal + taxAmount - discount),
+    finalTotalAmount: Number((taxableAmount + taxAmount).toFixed(2)),
   };
 }
 

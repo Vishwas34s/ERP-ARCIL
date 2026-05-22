@@ -8,7 +8,7 @@ import { useDemoUser } from '@/lib/auth';
 import { evaluateWorkflowMatch, matchBadgeTone } from '@/lib/matching';
 import { useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, Eye, PauseCircle, Search, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, PauseCircle, Search, Wallet, X, XCircle } from 'lucide-react';
 
 function toneForStatus(status: WorkflowItem['status']) {
   if (status === 'Approved' || status === 'Queued for Payment' || status === 'Paid') return 'emerald';
@@ -24,10 +24,10 @@ function DetailField({ label, value }: { label: string; value: string | number }
 function ApprovalDetail({ item, onClose }: { item: WorkflowItem; onClose: () => void }) {
   const result = evaluateWorkflowMatch(item);
   const feeDetails = [
-    ['PO base amount', money(item.poAmount)],
-    ['Invoice amount', money(item.invoiceAmount)],
+    ['PO total amount', money(item.poAmount)],
+    ['Invoice base amount', money(item.invoiceAmount)],
     ['GST amount', money(item.gstAmount)],
-    ['Gross with GST', money(item.invoiceAmount + item.gstAmount)],
+    ['Gross total', money(item.invoiceAmount + item.gstAmount)],
     ['Amount variance', money(item.invoiceAmount - item.poAmount)],
     ['Quantity variance', item.grnQty - item.poQty],
   ];
@@ -43,7 +43,7 @@ function ApprovalDetail({ item, onClose }: { item: WorkflowItem; onClose: () => 
               <Badge tone={matchBadgeTone(result.status)}>{result.status}</Badge>
             </div>
             <h2 className="mt-3 text-xl font-semibold text-white">{item.invoiceNumber}</h2>
-            <p className="mt-1 text-sm text-slate-400">{item.vendorName} - {item.poNumber} / {item.grnNumber}</p>
+            <p className="mt-1 text-sm text-slate-400">{item.vendorName} - {item.poNumber} / {item.grnReference}</p>
           </div>
           <button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10" aria-label="Close approval detail"><X size={17} /></button>
         </div>
@@ -84,7 +84,7 @@ function ApprovalDetail({ item, onClose }: { item: WorkflowItem; onClose: () => 
                     <thead><tr className="text-xs uppercase tracking-[0.14em] text-slate-500"><th className="border-b border-white/10 px-3 py-2">Document</th><th className="border-b border-white/10 px-3 py-2">Reference</th><th className="border-b border-white/10 px-3 py-2">Amount</th><th className="border-b border-white/10 px-3 py-2">Qty</th></tr></thead>
                     <tbody>
                       <tr><td className="border-b border-white/5 px-3 py-3 text-slate-300">Purchase order</td><td className="border-b border-white/5 px-3 py-3 text-white">{item.poNumber}</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">{money(item.poAmount)}</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">{item.poQty}</td></tr>
-                      <tr><td className="border-b border-white/5 px-3 py-3 text-slate-300">GRN / challan</td><td className="border-b border-white/5 px-3 py-3 text-white">{item.grnNumber} / {item.challanNumber}</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">-</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">{item.grnQty}</td></tr>
+                      <tr><td className="border-b border-white/5 px-3 py-3 text-slate-300">GRN / challan</td><td className="border-b border-white/5 px-3 py-3 text-white">{item.grnReference} / {item.deliveryChallanNumber}</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">-</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">{item.grnQty}</td></tr>
                       <tr><td className="border-b border-white/5 px-3 py-3 text-slate-300">Invoice</td><td className="border-b border-white/5 px-3 py-3 text-white">{item.invoiceNumber}</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">{money(item.invoiceAmount)}</td><td className="border-b border-white/5 px-3 py-3 text-slate-300">{item.grnQty}</td></tr>
                     </tbody>
                   </table>
@@ -183,7 +183,7 @@ export default function ApprovalsPage() {
                 <tr key={item.id} className="transition hover:bg-white/[0.03]">
                   <td className="border-b border-white/5 px-3 py-4 font-medium text-white">{item.invoiceNumber}</td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.vendorName}</td>
-                  <td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.poNumber} / {item.grnNumber}</td>
+                  <td className="border-b border-white/5 px-3 py-4 text-slate-300">{item.poNumber} / {item.grnReference}</td>
                   <td className="border-b border-white/5 px-3 py-4 text-slate-200">{money(item.invoiceAmount)}</td>
                   <td className="border-b border-white/5 px-3 py-4"><Badge tone={item.approvalLevel === 'L1' ? 'cyan' : item.approvalLevel === 'L2' ? 'violet' : 'amber'}>{item.approvalLevel}</Badge></td>
                   <td className="border-b border-white/5 px-3 py-4"><div className="flex flex-wrap gap-2"><Badge tone={matchBadgeTone(result.status)}>{result.status}</Badge>{result.variances.slice(0, 2).map((variance, index) => <Badge key={`${variance.field}-${index}`} tone={variance.severity === 'critical' ? 'rose' : 'amber'}>{variance.field}</Badge>)}</div></td>

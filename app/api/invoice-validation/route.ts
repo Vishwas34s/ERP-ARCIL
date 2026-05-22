@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { validateManualInvoice, type ManualInvoiceDraft } from '@/lib/matching';
 import { seedWorkflowItems } from '@/lib/workflow-store';
 import { seedPurchaseOrders } from '@/lib/purchase-orders';
-import { seedGoodsReceipts } from '@/lib/grn-store';
 import { demoData } from '@/lib/data';
 
 export async function POST(request: Request) {
@@ -18,7 +17,6 @@ export async function POST(request: Request) {
       body.existingInvoiceNumbers ?? [],
       demoData.vendors,
       seedPurchaseOrders,
-      seedGoodsReceipts,
     );
     return NextResponse.json(result, { status: result.valid ? 200 : 422 });
   } catch {

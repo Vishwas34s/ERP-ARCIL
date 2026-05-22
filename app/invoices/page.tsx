@@ -6,14 +6,13 @@ import { Badge, MetricCard, Panel, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useVendors } from '@/lib/vendor-store';
 import { useDemoUser } from '@/lib/auth';
-import { matchBadgeTone, validateManualInvoice, type InvoiceValidationResult, type ManualInvoiceDraft } from '@/lib/matching';
+import { matchBadgeTone, normalizeKey, validateManualInvoice, type InvoiceValidationResult, type ManualInvoiceDraft } from '@/lib/matching';
 import { clearDraft, readDraft, useFormDraftAutoSave, writeDraft } from '@/lib/form-draft-store';
 
 import { approvalLevelFor, useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
-import { useGoodsReceipts } from '@/lib/grn-store';
 import { usePurchaseOrders } from '@/lib/purchase-order-store';
 import { money } from '@/lib/utils';
-import type { Vendor, GoodsReceipt, PurchaseOrder } from '@/lib/types';
+import type { Vendor, PurchaseOrder } from '@/lib/types';
 import { AlertTriangle, CheckCircle2, Download, Eye, FileImage, FileText, ListChecks, RotateCcw, Save, Search, Upload, X, XCircle } from 'lucide-react';
 
 type IntakeMode = 'OCR' | 'Manual';
@@ -34,7 +33,6 @@ type FieldDef = {
   type?: string;
   required?: boolean;
   options?: string[];
-  derived?: boolean;
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -84,10 +82,10 @@ const invoiceGroups: Array<{ title: string; fields: FieldDef[] }> = [
     fields: [
       { key: 'poNumber', label: 'PO Number' },
       { key: 'poDate', label: 'PO Date', type: 'date', required: false },
-      { key: 'grnReference', label: 'GRN Reference', derived: true },
-      { key: 'grnDate', label: 'GRN Date', type: 'date', derived: true, required: false },
-      { key: 'deliveryChallanNumber', label: 'Delivery Challan Number', derived: true },
-      { key: 'deliveryChallanDate', label: 'Delivery Challan Date', type: 'date', derived: true, required: false },
+      { key: 'grnReference', label: 'GRN Reference' },
+      { key: 'grnDate', label: 'GRN Date', type: 'date', required: false },
+      { key: 'deliveryChallanNumber', label: 'Delivery Challan Number' },
+      { key: 'deliveryChallanDate', label: 'Delivery Challan Date', type: 'date', required: false },
       { key: 'department', label: 'Department' },
       { key: 'costCenter', label: 'Cost center' },
     ],
@@ -203,10 +201,6 @@ function totalTax(draft: InvoiceDraft) {
   return numberValue(draft.cgstAmount) + numberValue(draft.sgstAmount) + numberValue(draft.igstAmount);
 }
 
-function normalizeKey(value: string) {
-  return value.trim().toLowerCase();
-}
-
 function mapVendorAddress(vendor: any) {
   return [vendor.addressLine1, vendor.city, vendor.state].filter(Boolean).join(', ');
 }
@@ -222,12 +216,7 @@ function findVendor(vendors: any[], query: string) {
 
 function findPurchaseOrder(purchaseOrders: PurchaseOrder[], query: string) {
   const normalized = normalizeKey(query);
-  return purchaseOrders.find((po) => normalizeKey(po.poNumber) === normalized || normalizeKey(po.poNumber).includes(normalized));
-}
-
-function findGoodsReceipt(goodsReceipts: GoodsReceipt[], query: string) {
-  const normalized = normalizeKey(query);
-  return goodsReceipts.find((grn) => normalizeKey(grn.grnNumber) === normalized || normalizeKey(grn.grnNumber).includes(normalized) || normalizeKey(grn.deliveryChallanNumber).includes(normalized));
+  return purchaseOrders.find((po) => normalizeKey(po.poNumber) === normalized);
 }
 
 function deriveDraftFromVendor(draft: InvoiceDraft, vendor: any) {
@@ -251,18 +240,24 @@ function deriveDraftFromVendor(draft: InvoiceDraft, vendor: any) {
   };
 }
 
-function deriveDraftFromPurchaseOrder(draft: InvoiceDraft, po: PurchaseOrder, goodsReceipts: GoodsReceipt[]) {
-  const grn = goodsReceipts.find((receipt) => normalizeKey(receipt.poNumber) === normalizeKey(po.poNumber));
-  const totalQuantity = po.items.reduce((sum, item) => sum + item.quantityOrdered, 0);
-  const lineItem = po.items[0] || { itemDescription: draft.itemDescription, quantityOrdered: 0, unitPrice: 0, skuCode: draft.lineItemCode };
+function deriveDraftFromPurchaseOrder(draft: InvoiceDraft, po: PurchaseOrder): InvoiceDraft {
+  const totalQuantity = po.items.reduce((sum, item) => sum + (Number(item.quantityOrdered) || 0), 0);
+  const lineItem = po.items[0] || { itemDescription: draft.itemDescription, unitPrice: 0, skuCode: draft.lineItemCode, hsnSac: '998399' };
   const extractedGst = Number(String(po.gstDetails).match(/(\d+(?:\.\d+)?)/)?.[1]) || 18;
   const gstRate = po.gstRate ?? extractedGst;
-  const resolvedQuantity = grn?.quantityReceived ?? lineItem.quantityOrdered ?? totalQuantity;
+  const taxableAmount = po.subtotal - (po.discount || 0);
+  const avgPrice = totalQuantity > 0 ? (po.subtotal / totalQuantity) : (lineItem.unitPrice || 0);
+
+  const cgst = Number((po.taxAmount / 2).toFixed(2));
+  const sgst = Number((po.taxAmount - cgst).toFixed(2));
+
   return {
     ...draft,
     vendorId: po.vendorId,
     vendorName: po.vendorName,
+    vendorCode: po.vendorReferenceId || draft.vendorCode,
     vendorGstin: po.vendorGstDetails,
+    vendorPan: po.vendorPan || draft.vendorPan,
     vendorAddress: po.vendorAddress || draft.vendorAddress,
     paymentTerms: po.paymentTerms,
     currency: po.currency || draft.currency,
@@ -272,22 +267,26 @@ function deriveDraftFromPurchaseOrder(draft: InvoiceDraft, po: PurchaseOrder, go
     glCode: po.glCode || draft.glCode,
     lineItemCode: lineItem.skuCode || draft.lineItemCode,
     itemDescription: lineItem.itemDescription || draft.itemDescription,
-    hsnSac: po.sacCode || draft.hsnSac,
+    hsnSac: lineItem.hsnSac || po.sacCode || draft.hsnSac,
     unit: po.unit || draft.unit,
-    unitPrice: String(lineItem.unitPrice || 0),
+    unitPrice: avgPrice.toFixed(2),
     gstRate: String(gstRate),
-    subtotal: String(po.subtotal),
-    taxableAmount: String(po.subtotal),
-    cgstAmount: String(Math.round(po.taxAmount / 2)),
-    sgstAmount: String(Math.round(po.taxAmount / 2)),
-    igstAmount: '0',
-    grossAmount: String(po.finalTotalAmount),
+    quantity: String(totalQuantity),
+    subtotal: po.subtotal.toFixed(2),
+    discount: String(po.discount || 0),
+    taxableAmount: taxableAmount.toFixed(2),
+    cgstAmount: cgst.toFixed(2),
+    sgstAmount: sgst.toFixed(2),
+    igstAmount: '0.00',
+    tdsAmount: '0.00',
+    freightAmount: '0.00',
+    roundOff: '0.00',
+    grossAmount: po.finalTotalAmount.toFixed(2),
     poDate: po.poDate,
-    grnReference: grn?.grnNumber || po.grnReference || draft.grnReference,
-    grnDate: grn?.grnDate || po.grnDate || draft.grnDate,
-    deliveryChallanNumber: grn?.deliveryChallanNumber || po.deliveryChallanNumber || draft.deliveryChallanNumber,
-    deliveryChallanDate: grn?.deliveryChallanDate || po.deliveryChallanDate || draft.deliveryChallanDate,
-    quantity: String(resolvedQuantity),
+    grnReference: po.grnReference || '',
+    grnDate: po.grnDate || '',
+    deliveryChallanNumber: po.deliveryChallanNumber || '',
+    deliveryChallanDate: po.deliveryChallanDate || '',
   };
 }
 
@@ -296,7 +295,6 @@ function evaluateDraft(
   items: WorkflowItem[],
   vendors: Vendor[],
   purchaseOrders: PurchaseOrder[],
-  goodsReceipts: GoodsReceipt[],
 ): InvoiceValidationResult {
   return validateManualInvoice(
     toManualDraft(draft),
@@ -304,7 +302,6 @@ function evaluateDraft(
     items.map((item) => item.invoiceNumber),
     vendors,
     purchaseOrders,
-    goodsReceipts,
   );
 }
 
@@ -318,7 +315,6 @@ function toManualDraft(draft: InvoiceDraft): ManualInvoiceDraft {
     vendorCode: draft.vendorCode,
     vendorGstin: draft.vendorGstin,
     vendorPan: draft.vendorPan,
-    invoiceAmount: numberValue(draft.grossAmount),
     taxAmount: totalTax(draft),
     gstInformation: `GST ${draft.gstRate}%`,
     gstRate: numberValue(draft.gstRate),
@@ -360,14 +356,13 @@ function Field({ field, value, onChange, error }: { field: FieldDef; value: stri
       <label className="text-sm text-slate-300">
         {field.label}
         <input
-          disabled={field.derived}
-          required={field.required !== false && !field.derived}
+          required={field.required !== false}
           type={field.type || 'text'}
           list={datalistId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder={field.derived ? 'Auto-filled from PO/GRN' : `Search or select ${field.label.toLowerCase()}`}
-          className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}
+          placeholder={`Search or select ${field.label.toLowerCase()}`}
+          className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'}`}
         />
         <datalist id={datalistId}>
           {field.options.map((option) => <option key={option} value={option} />)}
@@ -381,7 +376,7 @@ function Field({ field, value, onChange, error }: { field: FieldDef; value: stri
     return (
       <label className="text-sm text-slate-300">
         {field.label}
-        <select disabled={field.derived} value={value} onChange={(event) => onChange(event.target.value)} className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}>
+        <select value={value} onChange={(event) => onChange(event.target.value)} className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'}`}>
           {field.options.map((option) => <option key={option}>{option}</option>)}
         </select>
         {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
@@ -393,12 +388,11 @@ function Field({ field, value, onChange, error }: { field: FieldDef; value: stri
     <label className="text-sm text-slate-300">
       {field.label}
       <input
-        disabled={field.derived}
-        required={field.required !== false && !field.derived}
+        required={field.required !== false}
         type={field.type || 'text'}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'} ${field.derived ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-white/5' : ''}`}
+        className={`mt-2 w-full rounded-lg border bg-slate-950/50 px-4 py-3 text-sm outline-none focus:border-cyan-400/30 ${error ? 'border-rose-500/50' : 'border-white/10'}`}
       />
       {error && <div className="mt-1 text-[11px] text-rose-400">{error}</div>}
     </label>
@@ -438,7 +432,7 @@ function ValidationResult({ result }: { result: InvoiceValidationResult }) {
           <CheckItem label="PO matched" passed={result.checks.poMatched} />
           <CheckItem label="GRN matched" passed={result.checks.grnMatched} />
           <CheckItem label="Tax validated" passed={result.checks.taxValidated} />
-          <CheckItem label="Amount validated" passed={result.checks.amountValidated} />
+          <CheckItem label="Amount matched" passed={result.checks.amountMatched} />
         </div>
 
         <div className="rounded-lg bg-slate-950/40 p-3">
@@ -492,7 +486,7 @@ function TraditionalInvoicePreview({ draft, item, onClose }: { draft?: InvoiceDr
     unitPrice: numberValue(draft.unitPrice),
     taxableAmount: numberValue(draft.taxableAmount),
     gst: totalTax(draft),
-    gross: numberValue(draft.grossAmount) || numberValue(draft.taxableAmount) + totalTax(draft),
+    gross: (numberValue(draft.grossAmount) || (numberValue(draft.taxableAmount) + totalTax(draft))),
     paymentTerms: draft.paymentTerms,
   } : {
     invoiceNumber: item?.invoiceNumber || '',
@@ -651,7 +645,6 @@ export default function InvoicesPage() {
   const { vendors } = useVendors();
   const { items, save } = useWorkflowItems();
   const { items: purchaseOrders } = usePurchaseOrders();
-  const { items: goodsReceipts } = useGoodsReceipts();
   const [activeView, setActiveView] = useState<InvoiceView>('create');
   const [mode, setMode] = useState<IntakeMode>('OCR');
   const [draft, setDraft] = useState<InvoiceDraft>(defaultDraft);
@@ -705,7 +698,7 @@ export default function InvoicesPage() {
     return rows.filter((row) => {
       const byStatus = statusFilter === 'All' || row.status === statusFilter || row.matchStatus === statusFilter || row.paymentStatus === statusFilter;
       const bySource = sourceFilter === 'All' || row.intakeMode === sourceFilter;
-      const phrase = `${row.invoiceNumber} ${row.vendorName} ${row.poNumber} ${row.grnNumber} ${row.challanNumber} ${row.status} ${row.matchStatus}`.toLowerCase();
+      const phrase = `${row.invoiceNumber} ${row.vendorName} ${row.poNumber} ${row.grnReference} ${row.deliveryChallanNumber} ${row.status} ${row.matchStatus}`.toLowerCase();
       return byStatus && bySource && (!q || phrase.includes(q));
     });
   }, [rows, query, statusFilter, sourceFilter]);
@@ -718,22 +711,24 @@ export default function InvoicesPage() {
   const poOptions = useMemo(() => ['Select PO', ...purchaseOrders.map(p => p.poNumber)], [purchaseOrders]);
 
 
-  function calculateAutoTotals(nextDraft: InvoiceDraft) {
+  function calculateAutoTotals(nextDraft: InvoiceDraft): Partial<InvoiceDraft> {
     const quantity = numberValue(nextDraft.quantity);
     const price = numberValue(nextDraft.unitPrice);
-    const subtotal = quantity * price;
+    const subtotal = Number((quantity * price).toFixed(2));
     const discount = numberValue(nextDraft.discount);
-    const taxable = subtotal - discount;
-    const gst = taxable * (numberValue(nextDraft.gstRate) / 100);
-    const half = gst / 2;
-    const gross = taxable + gst + numberValue(nextDraft.freightAmount) + numberValue(nextDraft.roundOff) - numberValue(nextDraft.tdsAmount);
+    const taxableAmount = Number((subtotal - discount).toFixed(2));
+    const gstRate = numberValue(nextDraft.gstRate);
+    const totalTax = Number((taxableAmount * (gstRate / 100)).toFixed(2));
+    const halfTax = Number((totalTax / 2).toFixed(2));
+    const grossAmount = Number((taxableAmount + totalTax + numberValue(nextDraft.freightAmount) + numberValue(nextDraft.roundOff) - numberValue(nextDraft.tdsAmount)).toFixed(2));
+
     return {
-      subtotal: String(Math.round(subtotal)),
-      taxableAmount: String(Math.round(taxable)),
-      cgstAmount: String(Math.round(half)),
-      sgstAmount: String(Math.round(half)),
-      igstAmount: '0',
-      grossAmount: String(Math.round(gross)),
+      subtotal: subtotal.toFixed(2),
+      taxableAmount: taxableAmount.toFixed(2),
+      cgstAmount: halfTax.toFixed(2),
+      sgstAmount: (totalTax - halfTax).toFixed(2),
+      igstAmount: '0.00',
+      grossAmount: grossAmount.toFixed(2),
     };
   }
 
@@ -743,46 +738,40 @@ export default function InvoicesPage() {
     let nextDraft = { ...draft, [key]: rawValue };
 
     if (key === 'vendorName') {
-      const vendor = findVendor(vendors, rawValue); // Find vendor by name
-      if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor); // Auto-fill vendor details
+      const vendor = findVendor(vendors, rawValue);
+      if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor);
     }
 
     if (key === 'poNumber') {
-      // Clear GRN related fields if PO is cleared or not found
       if (!rawValue) {
         nextDraft = { ...nextDraft, grnReference: '', grnDate: '', deliveryChallanNumber: '', deliveryChallanDate: '' };
       }
 
       const po = findPurchaseOrder(purchaseOrders, rawValue);
       if (po) {
-        // Auto-fill all PO and linked GRN data
-        nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po, goodsReceipts);
-        
-        // Auto-fill vendor details from PO's vendor reference
         const vendor = vendors.find(v => v.id === po.vendorId || v.vendorCode === po.vendorReferenceId) || findVendor(vendors, po.vendorName);
         if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor);
-
-        // Recalculate totals after all fields are updated
-        Object.assign(nextDraft, calculateAutoTotals(nextDraft));
+        nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po);
       }
     }
 
-    if (['quantity', 'unitPrice', 'discount', 'gstRate', 'freightAmount', 'roundOff', 'tdsAmount'].includes(key)) {
-      Object.assign(nextDraft, calculateAutoTotals(nextDraft));
+    if (['poNumber', 'quantity', 'unitPrice', 'discount', 'gstRate', 'freightAmount', 'roundOff', 'tdsAmount'].includes(key)) {
+      nextDraft = { ...nextDraft, ...calculateAutoTotals(nextDraft) };
     }
 
     setDraft(nextDraft);
     setFieldErrors({});
     if (['vendorName', 'poNumber', 'grnReference', 'quantity', 'unitPrice', 'gstRate'].includes(key)) {
-      setResult(evaluateDraft(nextDraft, items, vendors, purchaseOrders, goodsReceipts));
+      setResult(evaluateDraft(nextDraft, items, vendors, purchaseOrders));
     }
   }
 
   function runOcr(fileName?: string) {
-    const vendor = vendors.find((entry) => entry.approvalStatus === 'Approved') || vendors[0];
-    const subtotal = 68000;
-    const gst = Math.round(subtotal * 0.18);
-    const nextDraft: InvoiceDraft = {
+    const po = findPurchaseOrder(purchaseOrders, 'PO-1002') || purchaseOrders[0];
+    const vendor = po ? vendors.find((entry) => entry.id === po.vendorId) || findVendor(vendors, po.vendorName) : vendors.find((entry) => entry.approvalStatus === 'Approved') || vendors[0];
+    const subtotal = po?.subtotal ?? 68000;
+    const gst = po?.taxAmount ?? Math.round(subtotal * 0.18);
+    let nextDraft: InvoiceDraft = {
       ...defaultDraft,
       invoiceNumber: `OCR-${String(Date.now()).slice(-6)}`,
       invoiceDate: today,
@@ -801,22 +790,26 @@ export default function InvoicesPage() {
       ifsc: vendor?.ifsc || 'HDFC0000123',
       bankBranch: vendor?.bankBranch || 'Main Branch',
       beneficiaryName: vendor?.displayName || vendor?.legalName || 'Aster Distributor',
-      poNumber: 'PO-1002',
-      poDate: today,
-      grnReference: 'GRN-5002',
-      grnDate: today,
-      deliveryChallanNumber: 'DC-7002',
-      deliveryChallanDate: today,
-      itemDescription: 'Implementation consulting sprint',
-      quantity: '4',
-      unitPrice: '17000',
+      poNumber: po?.poNumber || 'PO-1002',
+      poDate: po?.poDate || today,
+      grnReference: po?.grnReference || '',
+      grnDate: po?.grnDate || today,
+      deliveryChallanNumber: po?.deliveryChallanNumber || '',
+      deliveryChallanDate: po?.deliveryChallanDate || today,
+      itemDescription: po?.items[0]?.itemDescription || 'Implementation consulting sprint',
+      quantity: String(po?.receivedQuantity || po?.items[0]?.quantityOrdered || 4),
+      unitPrice: String(po?.items[0]?.unitPrice || 17000),
       subtotal: String(subtotal),
       taxableAmount: String(subtotal),
-      cgstAmount: String(Math.round(gst / 2)),
-      sgstAmount: String(Math.round(gst / 2)),
-      grossAmount: String(subtotal + gst),
+      cgstAmount: (gst / 2).toFixed(2),
+      sgstAmount: (gst / 2).toFixed(2),
+      grossAmount: (subtotal + gst).toFixed(2),
       remarks: 'OCR extracted draft. Verify mismatch cards before sending to approval.',
     };
+    if (po) {
+      nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po);
+      Object.assign(nextDraft, calculateAutoTotals(nextDraft));
+    }
     setDraft(nextDraft);
     setMode('OCR');
     setOcrDiscrepancies(['OCR confidence below 90%', 'Bank account masked value needs vendor master check', 'GST split requires manual confirmation']);
@@ -824,14 +817,18 @@ export default function InvoicesPage() {
     toast({ type: 'info', title: 'OCR extracted', description: 'Invoice fields were filled from the uploaded file.' });
   }
 
-  function validateCurrent() {
-    const validation = evaluateDraft(draft, items, vendors, purchaseOrders, goodsReceipts);
+  function validateCurrent(): InvoiceValidationResult {
+    const currentTotals = calculateAutoTotals(draft);
+    const updatedDraft = { ...draft, ...currentTotals };
+    setDraft(updatedDraft);
+
+    const validation = evaluateDraft(updatedDraft, items, vendors, purchaseOrders);
     setResult(validation);
     setFieldErrors(validation.fieldErrors);
 
     toast({
-      type: validation.valid ? validation.status === 'Matched' ? 'success' : 'warning' : 'error',
-      title: validation.valid ? `Validation ${validation.status}` : 'Validation failed',
+      type: validation.valid ? (validation.status === 'Matched' ? 'success' : 'warning') : 'error',
+      title: validation.valid ? `Validation Result: ${validation.status}` : 'Validation Failed',
       description: validation.valid ? 'Date, amount, GST, bank, vendor, PO, GRN, and challan checks finished.' : validation.errors[0] || 'Fix required invoice fields.',
     });
     return validation;
@@ -839,7 +836,7 @@ export default function InvoicesPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const validation = evaluateDraft(draft, items, vendors, purchaseOrders, goodsReceipts);
+    const validation = evaluateDraft(draft, items, vendors, purchaseOrders);
     setResult(validation);
     setFieldErrors(validation.fieldErrors);
 
@@ -853,16 +850,18 @@ export default function InvoicesPage() {
       vendorId: manualDraft.vendorId || validation.poSource?.vendorId || '',
       vendorName: manualDraft.vendorName,
       poNumber: manualDraft.poNumber,
-      poAmount: validation.poSource?.finalTotalAmount ?? manualDraft.invoiceAmount,
+      poAmount: validation.poSource?.finalTotalAmount ?? manualDraft.grossAmount,
       poQty: validation.poSource ? (validation.poSource.items ? validation.poSource.items.reduce((s, it) => s + (it.quantityOrdered || 0), 0) : manualDraft.quantity) : manualDraft.quantity,
-      grnNumber: manualDraft.grnReference,
-      grnQty: validation.grnSource?.quantityReceived ?? manualDraft.quantity,
-      challanNumber: manualDraft.deliveryChallanNumber || '',
+      grnReference: manualDraft.grnReference,
+      grnDate: manualDraft.grnDate,
+      grnQty: manualDraft.quantity,
+      deliveryChallanNumber: manualDraft.deliveryChallanNumber || '',
+      deliveryChallanDate: manualDraft.deliveryChallanDate || '',
       invoiceNumber: manualDraft.invoiceNumber,
       invoiceDate: manualDraft.invoiceDate,
-      invoiceAmount: manualDraft.invoiceAmount,
+      invoiceAmount: manualDraft.taxableAmount,
       gstAmount: manualDraft.taxAmount,
-      approvalLevel: approvalLevelFor(manualDraft.invoiceAmount),
+      approvalLevel: approvalLevelFor(manualDraft.grossAmount),
       status: validation.status === 'Success' ? 'Submitted' : 'On Hold',
       matchStatus: validation.status === 'Success' ? 'Matched' : 'Variance',
       paymentMode: manualDraft.paymentMode,
@@ -873,8 +872,8 @@ export default function InvoicesPage() {
     };
     save([nextItem, ...items]);
     toast({
-      type: validation.status === 'Matched' ? 'success' : 'warning',
-      title: validation.status === 'Matched' ? 'Invoice sent to approval' : 'Invoice held for discrepancy',
+      type: validation.status === 'Success' ? 'success' : 'warning',
+      title: validation.status === 'Success' ? 'Invoice sent to approval' : 'Invoice held for discrepancy',
       description: `${draft.invoiceNumber} is synced across invoice, matching, approval, and payment pages.`,
     });
     clearDraft(invoiceDraftKey);

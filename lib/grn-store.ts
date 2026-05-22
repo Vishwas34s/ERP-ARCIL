@@ -141,8 +141,8 @@ export function validateGoodsReceipt(draft: GoodsReceipt, existing: GoodsReceipt
   if (grn.quantityReceived <= 0) errors.push('Quantity received must be greater than zero.');
   if (grn.acceptedQuantity == null || grn.acceptedQuantity < 0) errors.push('Accepted quantity must be zero or greater.');
   if (grn.rejectedQuantity == null || grn.rejectedQuantity < 0) errors.push('Rejected quantity must be zero or greater.');
-  if (grn.acceptedQuantity + grn.rejectedQuantity !== grn.quantityReceived) errors.push('Accepted and rejected quantities must sum to the received quantity.');
-  if (!grn.itemCondition.trim()) errors.push('Item condition is required.');
+  if ((grn.acceptedQuantity ?? 0) + (grn.rejectedQuantity ?? 0) !== grn.quantityReceived) errors.push('Accepted and rejected quantities must sum to the received quantity.');
+  if (!grn.itemCondition?.trim()) errors.push('Item condition is required.');
   if (!grn.warehouse.trim()) errors.push('Warehouse is required.');
   if (!grn.receiverName.trim()) errors.push('Receiver name is required.');
   if (!grn.deliveryChallanNumber.trim()) errors.push('Delivery challan number is required.');

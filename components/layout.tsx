@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   BarChart3,
   Building2,
@@ -37,12 +37,6 @@ type NavChild = { href: string; label: string; icon?: LucideIcon };
 type NavGroup = { id: string; label: string; icon: LucideIcon; children: NavChild[] };
 
 const navGroups: NavGroup[] = [
-  {
-    id: 'overview',
-    label: 'Command centre',
-    icon: BarChart3,
-    children: [{ href: '/', label: 'Overview', icon: BarChart3 }],
-  },
   {
     id: 'vendors',
     label: 'Vendor master',
@@ -116,6 +110,7 @@ function ThemeButton({ theme, onToggle }: { theme: 'light' | 'dark'; onToggle: (
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const toast = useToast();
   const [activeUser, setActiveUser] = useState<DemoUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<DemoRoleKey>(demoUsers[0].key);
@@ -144,6 +139,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
     }
   }, []);
+
+  // Redirect from overview/root to invoices as the default workspace
+  useEffect(() => {
+    if (activeUser && pathname === '/') {
+      router.push('/invoices');
+    }
+  }, [activeUser, pathname, router]);
 
   function toggleTheme() {
     const nextTheme = theme === 'light' ? 'dark' : 'light';

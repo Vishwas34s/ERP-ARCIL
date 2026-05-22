@@ -254,7 +254,21 @@ export default function CreatePaymentPage() {
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4 space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
-              <InputField label="Invoice number" value={form.invoiceNumber} onChange={(value) => patchForm({ invoiceNumber: value })} required type="text" />
+              <InputField 
+                label="Invoice number" 
+                value={form.invoiceNumber} 
+                onChange={(value) => {
+                  patchForm({ invoiceNumber: value });
+                  // Auto-fetch details if a matching approved invoice is found
+                  const match = readyItems.find(item => item.invoiceNumber.trim().toLowerCase() === value.trim().toLowerCase());
+                  if (match) {
+                    setSelectedInvoiceId(match.id);
+                    toast({ type: 'success', title: 'Invoice detected', description: `Details for ${match.invoiceNumber} have been auto-populated.` });
+                  }
+                }} 
+                required 
+                type="text" 
+              />
               <InputField label="Vendor name" value={form.vendorName} onChange={(value) => patchForm({ vendorName: value })} required type="text" />
               <InputField label="Payment mode" value={form.paymentMode} onChange={(value) => patchForm({ paymentMode: value as PaymentMethod })} type="text" required />
             </div>
@@ -271,7 +285,7 @@ export default function CreatePaymentPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <InputField label="Beneficiary" value={form.beneficiaryName} onChange={(value) => patchForm({ beneficiaryName: value })} required type="text" />
               <InputField label="Bank name" value={form.bankName} onChange={(value) => patchForm({ bankName: value })} required type="text" />
-              <InputField label="Account masked" value={form.bankAccountMasked} onChange={(value) => patchForm({ bankAccountMasked: value })} required type="text" help="Mask the account number for security." />
+              <InputField label="Account number" value={form.bankAccountMasked} onChange={(value) => patchForm({ bankAccountMasked: value })} required type="text" help="Mask the account number for security." />
               <InputField label="IFSC" value={form.ifsc} onChange={(value) => patchForm({ ifsc: value.toUpperCase() })} required type="text" />
             </div>
             <div className="grid gap-3 md:grid-cols-3">

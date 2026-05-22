@@ -387,8 +387,8 @@ export default function PurchaseOrdersPage() {
             <Field label="Vendor Reference ID" value={draft.vendorReferenceId || ''} onChange={(value) => patchDraft({ vendorReferenceId: value })} />
             <Field label="Delivery Challan Number" value={draft.deliveryChallanNumber || ''} error={fieldErrors.deliveryChallanNumber} onChange={(value) => patchDraft({ deliveryChallanNumber: value })} />
             <Field label="Delivery Challan Date" type="date" value={draft.deliveryChallanDate || ''} error={fieldErrors.deliveryChallanDate} onChange={(value) => patchDraft({ deliveryChallanDate: value })} />
-            <Field label="GRN Reference" value={draft.grnReference || ''} onChange={(value) => patchDraft({ grnReference: value })} />
-            <Field label="GRN Date" type="date" value={draft.grnDate || ''} onChange={(value) => patchDraft({ grnDate: value })} />
+            <Field label="GRN Reference" value={draft.grnReference || ''} error={fieldErrors.grnReference} onChange={(value) => patchDraft({ grnReference: value })} />
+            <Field label="GRN Date" type="date" value={draft.grnDate || ''} error={fieldErrors.grnDate} onChange={(value) => patchDraft({ grnDate: value })} />
             <div className="md:col-span-2"><TextArea label="Vendor Address" value={draft.vendorAddress} error={fieldErrors.vendorAddress} onChange={(value) => patchDraft({ vendorAddress: value })} /></div>
             <Field label="Company Name" value={draft.companyName} error={fieldErrors.companyName} onChange={(value) => patchDraft({ companyName: value })} />
             <Field label="Department Name" value={draft.departmentName} error={fieldErrors.departmentName} onChange={(value) => patchDraft({ departmentName: value })} />
@@ -457,7 +457,7 @@ export default function PurchaseOrdersPage() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             <InfoMetric label="Subtotal" value={money(normalizedDraft.subtotal, draft.currency)} />
-            <InfoMetric label="Tax less discount" value={money(Number(draft.taxAmount || 0) - Number(draft.discount || 0), draft.currency)} />
+            <InfoMetric label="Tax less discount" value={money(normalizedDraft.taxAmount - normalizedDraft.discount, draft.currency)} />
             <InfoMetric label="Final total" value={money(normalizedDraft.finalTotalAmount, draft.currency)} tone="emerald" />
           </div>
 

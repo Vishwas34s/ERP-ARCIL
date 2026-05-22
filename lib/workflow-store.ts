@@ -10,9 +10,11 @@ export type WorkflowItem = {
   poNumber: string;
   poAmount: number;
   poQty: number;
-  grnNumber: string;
+  grnReference: string;
+  grnDate: string;
   grnQty: number;
-  challanNumber: string;
+  deliveryChallanNumber: string;
+  deliveryChallanDate: string;
   invoiceNumber: string;
   invoiceDate: string;
   invoiceAmount: number;
@@ -37,9 +39,11 @@ export const seedWorkflowItems: WorkflowItem[] = [
     poNumber: 'PO-1001',
     poAmount: 8500,
     poQty: 10,
-    grnNumber: 'GRN-5001',
+    grnReference: 'GRN-5001',
+    grnDate: '2026-05-08',
     grnQty: 10,
-    challanNumber: 'DC-7001',
+    deliveryChallanNumber: 'DC-7001',
+    deliveryChallanDate: '2026-05-08',
     invoiceNumber: 'INV-AST-001',
     invoiceDate: '2026-05-01',
     invoiceAmount: 8500,
@@ -60,9 +64,11 @@ export const seedWorkflowItems: WorkflowItem[] = [
     poNumber: 'PO-1002',
     poAmount: 68000,
     poQty: 4,
-    grnNumber: 'GRN-5002',
+    grnReference: 'GRN-5002',
+    grnDate: '2026-05-15',
     grnQty: 4,
-    challanNumber: 'DC-7002',
+    deliveryChallanNumber: 'DC-7002',
+    deliveryChallanDate: '2026-05-15',
     invoiceNumber: 'INV-ZEN-014',
     invoiceDate: '2026-05-03',
     invoiceAmount: 68000,
@@ -83,9 +89,11 @@ export const seedWorkflowItems: WorkflowItem[] = [
     poNumber: 'PO-1003',
     poAmount: 245000,
     poQty: 25,
-    grnNumber: 'GRN-5003',
+    grnReference: 'GRN-5003',
+    grnDate: '2026-05-20',
     grnQty: 24,
-    challanNumber: 'DC-7003',
+    deliveryChallanNumber: 'DC-7003',
+    deliveryChallanDate: '2026-05-20',
     invoiceNumber: 'INV-ORI-221',
     invoiceDate: '2026-05-05',
     invoiceAmount: 245000,
@@ -106,9 +114,11 @@ export const seedWorkflowItems: WorkflowItem[] = [
     poNumber: 'PO-1004',
     poAmount: 98000,
     poQty: 8,
-    grnNumber: 'GRN-5004',
+    grnReference: 'GRN-5004',
+    grnDate: '2026-05-21',
     grnQty: 8,
-    challanNumber: 'DC-7004',
+    deliveryChallanNumber: 'DC-7004',
+    deliveryChallanDate: '2026-05-21',
     invoiceNumber: 'INV-NOV-089',
     invoiceDate: '2026-05-07',
     invoiceAmount: 98000,
@@ -129,9 +139,11 @@ export const seedWorkflowItems: WorkflowItem[] = [
     poNumber: 'PO-1005',
     poAmount: 320000,
     poQty: 15,
-    grnNumber: 'GRN-5005',
+    grnReference: 'GRN-5005',
+    grnDate: '2026-05-22',
     grnQty: 15,
-    challanNumber: 'DC-7005',
+    deliveryChallanNumber: 'DC-7005',
+    deliveryChallanDate: '2026-05-22',
     invoiceNumber: 'INV-DEL-310',
     invoiceDate: '2026-05-09',
     invoiceAmount: 320000,
@@ -152,9 +164,11 @@ export const seedWorkflowItems: WorkflowItem[] = [
     poNumber: 'PO-1006',
     poAmount: 4200,
     poQty: 20,
-    grnNumber: 'GRN-5006',
+    grnReference: 'GRN-5006',
+    grnDate: '2026-05-23',
     grnQty: 20,
-    challanNumber: 'DC-7006',
+    deliveryChallanNumber: 'DC-7006',
+    deliveryChallanDate: '2026-05-23',
     invoiceNumber: 'INV-QOS-032',
     invoiceDate: '2026-05-11',
     invoiceAmount: 4200,
@@ -170,19 +184,31 @@ export const seedWorkflowItems: WorkflowItem[] = [
   },
 ];
 
+function normalizeWorkflowItem(item: WorkflowItem & { grnNumber?: string; challanNumber?: string }): WorkflowItem {
+  const grnReference = item.grnReference || item.grnNumber || '';
+  const grnDate = item.grnDate || item.invoiceDate;
+  return {
+    ...item,
+    grnReference,
+    grnDate,
+    deliveryChallanNumber: item.deliveryChallanNumber || item.challanNumber || '',
+    deliveryChallanDate: item.deliveryChallanDate || grnDate,
+  };
+}
+
 function getStoredItems() {
   if (typeof window === 'undefined') return seedWorkflowItems;
   const saved = window.localStorage.getItem(workflowKey);
   if (!saved) return seedWorkflowItems;
   try {
-    return JSON.parse(saved) as WorkflowItem[];
+    return (JSON.parse(saved) as Array<WorkflowItem & { grnNumber?: string; challanNumber?: string }>).map(normalizeWorkflowItem);
   } catch {
     return seedWorkflowItems;
   }
 }
 
 function publish(items: WorkflowItem[]) {
-  window.localStorage.setItem(workflowKey, JSON.stringify(items));
+  window.localStorage.setItem(workflowKey, JSON.stringify(items.map(normalizeWorkflowItem)));
   window.dispatchEvent(new Event('procureflow-workflow-updated'));
 }
 

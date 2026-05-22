@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Badge, Panel, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/components/toast';
@@ -387,7 +387,7 @@ export default function PurchaseOrdersPage() {
             <Field label="Vendor Reference ID" value={draft.vendorReferenceId || ''} onChange={(value) => patchDraft({ vendorReferenceId: value })} />
             <Field label="Delivery Challan Number" value={draft.deliveryChallanNumber || ''} error={fieldErrors.deliveryChallanNumber} onChange={(value) => patchDraft({ deliveryChallanNumber: value })} />
             <Field label="Delivery Challan Date" type="date" value={draft.deliveryChallanDate || ''} error={fieldErrors.deliveryChallanDate} onChange={(value) => patchDraft({ deliveryChallanDate: value })} />
-            <Field label="GRN Reference" value={draft.grnNumber || ''} onChange={(value) => patchDraft({ grnNumber: value })} />
+            <Field label="GRN Reference" value={draft.grnReference || ''} onChange={(value) => patchDraft({ grnReference: value })} />
             <Field label="GRN Date" type="date" value={draft.grnDate || ''} onChange={(value) => patchDraft({ grnDate: value })} />
             <div className="md:col-span-2"><TextArea label="Vendor Address" value={draft.vendorAddress} error={fieldErrors.vendorAddress} onChange={(value) => patchDraft({ vendorAddress: value })} /></div>
             <Field label="Company Name" value={draft.companyName} error={fieldErrors.companyName} onChange={(value) => patchDraft({ companyName: value })} />

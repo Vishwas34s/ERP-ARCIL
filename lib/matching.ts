@@ -36,8 +36,10 @@ export type ManualInvoiceDraft = {
   gstInformation: string;
   gstRate: number;
   poNumber: string;
-  grnNumber: string;
+  grnReference: string;
   grnDate: string;
+  deliveryChallanNumber?: string;
+  deliveryChallanDate?: string;
   itemDetails: string;
   quantity: number;
   price: number;
@@ -143,6 +145,8 @@ export function validateManualInvoice(
     ['invoiceDate', 'Invoice date'],
     ['dueDate', 'Due date'],
     ['poNumber', 'PO Number'],
+    ['grnReference', 'GRN Reference'],
+    ['deliveryChallanNumber', 'Delivery Challan Number'],
     ['quantity', 'Quantity'],
     ['taxableAmount', 'Taxable amount'],
     ['grossAmount', 'Gross amount'],
@@ -217,7 +221,7 @@ export function validateManualInvoice(
   }
 
   const poSource = purchaseOrders.find((po) => sameText(po.poNumber, draft.poNumber));
-  const grnSource = goodsReceipts.find((grn) => sameText(grn.grnNumber, draft.grnNumber) || (draft.challanNumber && sameText(grn.deliveryChallanNumber, draft.challanNumber)));
+  const grnSource = goodsReceipts.find((grn) => sameText(grn.grnNumber, draft.grnReference) || (draft.deliveryChallanNumber && sameText(grn.deliveryChallanNumber, draft.deliveryChallanNumber)));
 
   // Rule 1: Purchase Order is Mandatory
   if (!poSource) {
@@ -244,24 +248,28 @@ export function validateManualInvoice(
   }
 
   // Rule 2: Goods Receipt is Mandatory (3-Way Match Requirement)
-  if (poSource && (!grnSource || !draft.grnNumber)) {
-    const msg = 'GRN missing for selected PO. Invoice cannot be validated until goods are received in warehouse.';
-    errors.push(msg);
-    fieldErrors.grnNumber = 'Physical receipt record required.';
-    checks.grnMatched = false;
-  } else {
-    checks.grnMatched = true;
-    if (!sameText(grnSource.poNumber, draft.poNumber)) {
-      variances.push({ field: 'GRN Reference', expected: `Linked to PO ${draft.poNumber}`, actual: `Linked to ${grnSource.poNumber}`, severity: 'critical' });
+  if (poSource) {
+    if (!grnSource || !draft.grnReference) {
+      const msg = 'GRN missing for selected PO. Invoice cannot be validated until goods are received in warehouse.';
+      errors.push(msg);
+      fieldErrors.grnReference = 'Physical receipt record required.';
+      fieldErrors.deliveryChallanNumber = 'Physical receipt / challan record required.';
       checks.grnMatched = false;
-    }
-    if (draft.quantity > grnSource.quantityReceived) {
-      variances.push({ field: 'Quantity', expected: `Max Received: ${grnSource.quantityReceived}`, actual: `Invoiced: ${draft.quantity}`, severity: 'critical' });
-      checks.grnMatched = false;
-    }
-    const gDate = new Date(grnSource.grnDate);
-    if (!Number.isNaN(gDate.getTime()) && !Number.isNaN(invDate.getTime()) && gDate > invDate) {
-      variances.push({ field: 'Date', expected: `GRN Date <= Invoice Date`, actual: `${grnSource.grnDate} > ${draft.invoiceDate}`, severity: 'warning' });
+    } else {
+      // Safe to perform GRN checks as grnSource is present
+      checks.grnMatched = true;
+      if (!sameText(grnSource.poNumber, draft.poNumber)) {
+        variances.push({ field: 'GRN Reference', expected: `Linked to PO ${draft.poNumber}`, actual: `Linked to ${grnSource.poNumber}`, severity: 'critical' });
+        checks.grnMatched = false;
+      }
+      if (draft.quantity > grnSource.quantityReceived) {
+        variances.push({ field: 'Quantity', expected: `Max Received: ${grnSource.quantityReceived}`, actual: `Invoiced: ${draft.quantity}`, severity: 'critical' });
+        checks.grnMatched = false;
+      }
+      const gDate = new Date(grnSource.grnDate);
+      if (!Number.isNaN(gDate.getTime()) && !Number.isNaN(invDate.getTime()) && gDate > invDate) {
+        variances.push({ field: 'Date', expected: `GRN Date <= Invoice Date`, actual: `${grnSource.grnDate} > ${draft.invoiceDate}`, severity: 'warning' });
+      }
     }
   }
 

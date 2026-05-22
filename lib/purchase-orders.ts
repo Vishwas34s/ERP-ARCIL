@@ -56,7 +56,7 @@ export const emptyPurchaseOrderDraft: PurchaseOrder = {
   updatedAt: '',
   deliveryChallanNumber: '',
   deliveryChallanDate: '2026-05-18',
-  grnNumber: '',
+  grnReference: '',
   grnDate: '',
   receivedQuantity: 0,
   acceptedQuantity: 0,
@@ -92,6 +92,8 @@ export function normalizePurchaseOrder(po: PurchaseOrder): PurchaseOrder {
     expectedDeliveryDate,
     deliveryChallanNumber: String(po.deliveryChallanNumber || '').trim(),
     deliveryChallanDate: po.deliveryChallanDate || po.poDate,
+    grnReference: String(po.grnReference || '').trim(),
+    grnDate: po.grnDate || po.poDate,
     finalTotalAmount: Math.max(0, subtotal + taxAmount - discount),
   };
 }
@@ -122,6 +124,8 @@ export function validatePurchaseOrder(draft: PurchaseOrder, existing: PurchaseOr
     ['paymentTerms', 'Payment terms'],
     ['deliveryChallanNumber', 'Delivery challan number'],
     ['deliveryChallanDate', 'Delivery challan date'],
+    ['grnReference', 'GRN reference'],
+    ['grnDate', 'GRN date'],
   ];
 
   required.forEach(([key, label]) => {
@@ -168,13 +172,13 @@ export function validatePurchaseOrder(draft: PurchaseOrder, existing: PurchaseOr
     fieldErrors.vendorGstDetails = message;
   }
 
-  if (!Number.isFinite(po.gstRate) || po.gstRate <= 0) {
+  if (!Number.isFinite(po.gstRate ?? NaN) || (po.gstRate ?? 0) <= 0) {
     const message = 'GST rate is required and must be greater than zero.';
     errors.push(message);
     fieldErrors.gstRate = message;
   }
 
-  const expectedDeliveryDate = new Date(po.expectedDeliveryDate);
+  const expectedDeliveryDate = new Date(po.expectedDeliveryDate || po.intendedDeliveryDate);
   if (!po.expectedDeliveryDate || Number.isNaN(expectedDeliveryDate.getTime())) {
     const message = 'Expected delivery date is invalid.';
     errors.push(message);

@@ -751,7 +751,9 @@ export default function InvoicesPage() {
       if (po) {
         const vendor = vendors.find(v => v.id === po.vendorId || v.vendorCode === po.vendorReferenceId) || findVendor(vendors, po.vendorName);
         if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor);
-        nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po);
+
+        // Recalculate totals after all fields are updated
+        Object.assign(nextDraft, calculateAutoTotals(nextDraft));
       }
     }
 

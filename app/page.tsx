@@ -84,7 +84,11 @@ function InsightRow({ label, value, helper, tone = 'slate' }: { label: string; v
 }
 
 export default function Dashboard() {
-  const user = useDemoUser();
+  // Overview removed from workspace for all roles.
+  // This route is intentionally blank.
+  return null;
+
+
   const { items } = useWorkflowItems();
   const { vendors } = useVendors();
   const { records: payments } = usePaymentRecords();

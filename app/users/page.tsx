@@ -181,7 +181,7 @@ export default function UsersPage() {
             <SelectField label="Approval access" value={draft.approvalAccess} options={yesNoOptions} onChange={(value) => patchDraft({ approvalAccess: value })} />
             <SelectField label="Payment access" value={draft.paymentAccess} options={yesNoOptions} onChange={(value) => patchDraft({ paymentAccess: value })} />
             <SelectField label="Audit access" value={draft.auditAccess} options={yesNoOptions} onChange={(value) => patchDraft({ auditAccess: value })} />
-            <SelectField label="Finance approval" value={draft.financeApprovalAccess} options={yesNoOptions} onChange={(value) => patchDraft({ financeApprovalAccess: value })} />
+            <SelectField label="Vendor approval" value={draft.financeApprovalAccess} options={yesNoOptions} onChange={(value) => patchDraft({ financeApprovalAccess: value })} />
             <SelectField label="2FA enabled" value={draft.twoFactorEnabled} options={yesNoOptions} onChange={(value) => patchDraft({ twoFactorEnabled: value })} />
             <TextField label="Shift" value={draft.shift} onChange={(value) => patchDraft({ shift: value })} />
             <TextField label="Timezone" value={draft.timezone} onChange={(value) => patchDraft({ timezone: value })} />
@@ -236,7 +236,7 @@ export default function UsersPage() {
           <table className="min-w-[2380px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead>
               <tr className="text-xs uppercase tracking-[0.14em] text-slate-500">
-                {['User', 'Employee ID', 'Email', 'Phone', 'Alt phone', 'Role', 'Designation', 'Department', 'Manager', 'Approval limit', 'Entity', 'Branch', 'Region', 'Cost center', 'Status', 'Access level', 'Vendor approval', 'Invoice', 'PO', 'Approval', 'Payment', 'Audit', 'Finance approval', '2FA', 'Last login', 'Created / updated', 'Device / IP', 'Comments'].map((heading) => (
+                {['User', 'Employee ID', 'Email', 'Phone', 'Alt phone', 'Role', 'Designation', 'Department', 'Manager', 'Approval limit', 'Entity', 'Branch', 'Region', 'Cost center', 'Status', 'Access level', 'Vendor approval', 'Invoice', 'PO', 'Approval', 'Payment', 'Audit', 'Vendor approval', '2FA', 'Last login', 'Created / updated', 'Device / IP', 'Comments'].map((heading) => (
                   <th key={heading} className="border-b border-white/10 px-3 py-3">{heading}</th>
                 ))}
               </tr>

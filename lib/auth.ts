@@ -26,7 +26,7 @@ export const demoUsers: DemoUser[] = [
     level: 'Admin',
     title: 'Full P2P operations owner',
     scope: 'Can see all operational data, monitor every phase, execute payments, and complete post-payment processing.',
-    nav: ['/', '/vendors', '/vendor-approvals', '/purchase-orders', '/invoices', '/matching', '/approvals', '/payments', '/audit', '/users', '/settings'],
+    nav: ['/vendors', '/vendor-approvals', '/purchase-orders', '/invoices', '/matching', '/approvals', '/payments', '/audit', '/users', '/settings'],
     accent: 'emerald',
   },
   {
@@ -38,7 +38,7 @@ export const demoUsers: DemoUser[] = [
     level: 'Finance',
     title: 'Vendor approvals and payment creation only',
     scope: 'Can approve vendor onboarding and create payments only after L1, L2, or L3 approval.',
-    nav: ['/', '/vendor-approvals', '/payments'],
+    nav: ['/vendor-approvals', '/payments'],
     accent: 'emerald',
   },
   {

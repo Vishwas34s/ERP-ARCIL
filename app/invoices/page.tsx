@@ -30,6 +30,7 @@ type FieldDef = {
   type?: string;
   required?: boolean;
   options?: string[];
+  derived?: boolean;
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -764,7 +765,8 @@ export default function InvoicesPage() {
         // Recalculate totals after all fields are updated
         Object.assign(nextDraft, calculateAutoTotals(nextDraft));
       } else {
-        setGrnWarning(null);
+        // If PO/GRN linkage isn't found, keep derived fields as-is.
+
       }
     }
 

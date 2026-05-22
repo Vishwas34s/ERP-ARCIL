@@ -8,7 +8,7 @@ import { useDemoUser } from '@/lib/auth';
 import { evaluateWorkflowMatch, matchBadgeTone } from '@/lib/matching';
 import { useWorkflowItems, type WorkflowItem } from '@/lib/workflow-store';
 import { money } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, Eye, PauseCircle, Search, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, PauseCircle, Search, Wallet, X, XCircle } from 'lucide-react';
 
 function toneForStatus(status: WorkflowItem['status']) {
   if (status === 'Approved' || status === 'Queued for Payment' || status === 'Paid') return 'emerald';

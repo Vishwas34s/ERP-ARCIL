@@ -198,7 +198,7 @@ export default function GrnPage() {
       nextErrors.push('Rejected quantity must be zero or greater.');
       nextFieldErrors.rejectedQuantity = 'Rejected quantity is required.';
     }
-    if (draft.acceptedQuantity + draft.rejectedQuantity !== draft.quantityReceived) {
+    if ((draft.acceptedQuantity ?? 0) + (draft.rejectedQuantity ?? 0) !== draft.quantityReceived) {
       nextErrors.push('Accepted and rejected quantities must sum to the received quantity.');
       nextFieldErrors.quantityReceived = 'Accepted + rejected must equal received quantity.';
     }
@@ -218,7 +218,7 @@ export default function GrnPage() {
       nextErrors.push('Delivery challan date is invalid.');
       nextFieldErrors.deliveryChallanDate = 'Delivery challan date is invalid.';
     }
-    if (!draft.itemCondition.trim()) {
+    if (!(draft.itemCondition ?? '').trim()) {
       nextErrors.push('Item condition is required.');
       nextFieldErrors.itemCondition = 'Item condition is required.';
     }

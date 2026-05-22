@@ -37,12 +37,7 @@ type NavChild = { href: string; label: string; icon?: LucideIcon };
 type NavGroup = { id: string; label: string; icon: LucideIcon; children: NavChild[] };
 
 const navGroups: NavGroup[] = [
-  {
-    id: 'overview',
-    label: 'Command centre',
-    icon: BarChart3,
-    children: [{ href: '/', label: 'Overview', icon: BarChart3 }],
-  },
+
   {
     id: 'vendors',
     label: 'Vendor master',
@@ -53,7 +48,7 @@ const navGroups: NavGroup[] = [
       { href: '/vendors?view=pending', label: 'Pending review', icon: ShieldCheck },
       { href: '/vendors?view=approved', label: 'Approved vendors', icon: UserRoundCheck },
       { href: '/vendors?view=rejected', label: 'Rejected vendors', icon: X },
-      { href: '/vendor-approvals', label: 'Finance approval', icon: ShieldCheck },
+      { href: '/vendor-approvals', label: 'Vendor approval', icon: ShieldCheck },
     ],
   },
   {
@@ -122,7 +117,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    overview: true,
     vendors: true,
     documents: true,
     approvals: true,

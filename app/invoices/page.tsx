@@ -257,7 +257,7 @@ function deriveDraftFromPurchaseOrder(draft: InvoiceDraft, po: PurchaseOrder): I
     vendorName: po.vendorName,
     vendorCode: po.vendorReferenceId || draft.vendorCode,
     vendorGstin: po.vendorGstDetails,
-    vendorPan: po.vendorPan || draft.vendorPan,
+    vendorPan: draft.vendorPan,
     vendorAddress: po.vendorAddress || draft.vendorAddress,
     paymentTerms: po.paymentTerms,
     currency: po.currency || draft.currency,
@@ -752,6 +752,8 @@ export default function InvoicesPage() {
         const vendor = vendors.find(v => v.id === po.vendorId || v.vendorCode === po.vendorReferenceId) || findVendor(vendors, po.vendorName);
         if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor);
 
+        nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po);
+
         // Recalculate totals after all fields are updated
         Object.assign(nextDraft, calculateAutoTotals(nextDraft));
       }
@@ -829,7 +831,7 @@ export default function InvoicesPage() {
     setFieldErrors(validation.fieldErrors);
 
     toast({
-      type: validation.valid ? (validation.status === 'Matched' ? 'success' : 'warning') : 'error',
+      type: validation.valid ? 'success' : 'error',
       title: validation.valid ? `Validation Result: ${validation.status}` : 'Validation Failed',
       description: validation.valid ? 'Date, amount, GST, bank, vendor, PO, GRN, and challan checks finished.' : validation.errors[0] || 'Fix required invoice fields.',
     });
@@ -838,12 +840,14 @@ export default function InvoicesPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const validation = evaluateDraft(draft, items, vendors, purchaseOrders);
+    const validation = validateCurrent(); // This ensures totals are synced and result is updated
+
     setResult(validation);
     setFieldErrors(validation.fieldErrors);
 
     if (!validation.valid) {
-      toast({ type: 'warning', title: 'Validation issues', description: 'Validation reported problems. The invoice will be submitted to workflow and marked for review.' });
+      toast({ type: 'error', title: 'Submission Blocked', description: 'Resolve critical validation errors highlighted below before submitting.' });
+      return;
     }
 
     const manualDraft = toManualDraft(draft);
@@ -864,18 +868,18 @@ export default function InvoicesPage() {
       invoiceAmount: manualDraft.taxableAmount,
       gstAmount: manualDraft.taxAmount,
       approvalLevel: approvalLevelFor(manualDraft.grossAmount),
-      status: validation.status === 'Success' ? 'Submitted' : 'On Hold',
-      matchStatus: validation.status === 'Success' ? 'Matched' : 'Variance',
+      status: validation.status === 'Matched' ? 'Submitted' : 'On Hold',
+      matchStatus: validation.status === 'Matched' ? 'Matched' : 'Variance',
       paymentMode: manualDraft.paymentMode,
-      paymentStatus: validation.status === 'Success' ? 'Not Ready' : 'Hold',
+      paymentStatus: validation.status === 'Matched' ? 'Not Ready' : 'Hold',
       erpSyncStatus: 'Pending',
       lastActionBy: `${mode} Invoice Intake (Validated)`,
       updatedAt: today,
     };
     save([nextItem, ...items]);
     toast({
-      type: validation.status === 'Success' ? 'success' : 'warning',
-      title: validation.status === 'Success' ? 'Invoice sent to approval' : 'Invoice held for discrepancy',
+      type: validation.status === 'Matched' ? 'success' : 'warning',
+      title: validation.status === 'Matched' ? 'Invoice sent to approval' : 'Invoice held for discrepancy',
       description: `${draft.invoiceNumber} is synced across invoice, matching, approval, and payment pages.`,
     });
     clearDraft(invoiceDraftKey);

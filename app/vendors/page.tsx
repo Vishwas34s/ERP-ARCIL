@@ -350,7 +350,7 @@ export default function VendorsPage() {
 
       {view === 'add' && (
         <Panel title="Add vendor with KYC documents" subtitle="This form captures more than 20 onboarding fields plus required Aadhaar, PAN, GST, bank proof, and cancelled cheque document references.">
-          {!canCreate && <div className="mb-4 rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-100">Only Admin can create vendor records. Use Admin role to add vendors.</div>}
+          {!canCreate && <div className="mb-4 rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-100">Only Admin can create Vendor records. Use Admin role to add vendors.</div>}
           <form onSubmit={submit} className="space-y-5">
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
               <Field label="Legal name" value={draft.legalName} onChange={(value) => patchDraft({ legalName: value })} />

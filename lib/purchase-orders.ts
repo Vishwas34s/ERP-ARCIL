@@ -16,6 +16,7 @@ export function createEmptyLineItem(index = 1): PurchaseOrderLineItem {
   return {
     id: `POL-${Date.now()}-${index}`,
     itemNumber: String(index),
+    hsnSac: '',
     skuCode: '',
     itemDescription: '',
     quantityOrdered: 1,

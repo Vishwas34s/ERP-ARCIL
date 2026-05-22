@@ -753,15 +753,12 @@ export default function InvoicesPage() {
         if (vendor) nextDraft = deriveDraftFromVendor(nextDraft, vendor);
 
         nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po);
-
-        // Recalculate totals after all fields are updated
-        Object.assign(nextDraft, calculateAutoTotals(nextDraft));
       }
     }
 
-    if (['poNumber', 'quantity', 'unitPrice', 'discount', 'gstRate', 'freightAmount', 'roundOff', 'tdsAmount'].includes(key)) {
-      nextDraft = { ...nextDraft, ...calculateAutoTotals(nextDraft) };
-    }
+    // if (['poNumber', 'quantity', 'unitPrice', 'discount', 'gstRate', 'freightAmount', 'roundOff', 'tdsAmount'].includes(key)) {
+      // nextDraft = { ...nextDraft, ...calculateAutoTotals(nextDraft) };
+    // }
 
     setDraft(nextDraft);
     setFieldErrors({});
@@ -812,8 +809,8 @@ export default function InvoicesPage() {
     };
     if (po) {
       nextDraft = deriveDraftFromPurchaseOrder(nextDraft, po);
-      Object.assign(nextDraft, calculateAutoTotals(nextDraft));
     }
+    // nextDraft = { ...nextDraft, ...calculateAutoTotals(nextDraft) };
     setDraft(nextDraft);
     setMode('OCR');
     setOcrDiscrepancies(['OCR confidence below 90%', 'Bank account masked value needs vendor master check', 'GST split requires manual confirmation']);
@@ -823,7 +820,7 @@ export default function InvoicesPage() {
 
   function validateCurrent(): InvoiceValidationResult {
     const currentTotals = calculateAutoTotals(draft);
-    const updatedDraft = { ...draft, ...currentTotals };
+    const updatedDraft = { ...draft, ...currentTotals } as InvoiceDraft;
     setDraft(updatedDraft);
 
     const validation = evaluateDraft(updatedDraft, items, vendors, purchaseOrders);

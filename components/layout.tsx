@@ -42,12 +42,12 @@ const navGroups: NavGroup[] = [
     label: 'Vendor master',
     icon: Building2,
     children: [
-      { href: '/vendors?view=add', label: 'Create vendor', icon: Building2 },
-      { href: '/vendors?view=all', label: 'Vendor register', icon: ClipboardList },
-      { href: '/vendors?view=pending', label: 'Pending review', icon: ShieldCheck },
-      { href: '/vendors?view=approved', label: 'Approved vendors', icon: UserRoundCheck },
-      { href: '/vendors?view=rejected', label: 'Rejected vendors', icon: X },
-      { href: '/vendor-approvals', label: 'Vendor approval', icon: ShieldCheck },
+      { href: '/vendors?view=add', label: 'Create Vendor', icon: Building2 },
+      { href: '/vendors?view=all', label: 'Vendor List', icon: ClipboardList },
+      { href: '/vendors?view=pending', label: 'Pending Review', icon: ShieldCheck },
+      { href: '/vendors?view=approved', label: 'Approved Vendors', icon: UserRoundCheck },
+      { href: '/vendors?view=rejected', label: 'Rejected Vendors', icon: X },
+      { href: '/vendor-approvals', label: 'Vendor Details', icon: ShieldCheck },
     ],
   },
   {
@@ -196,7 +196,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
               <ThemeButton theme={theme} onToggle={toggleTheme} />
             </div>
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white">ERP-ARCIAL</h1>
+            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white">VMS-ARCIL</h1>
             <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
               Choose a role and enter the AP workflow. No demo credentials are exposed on screen.
             </p>
@@ -277,7 +277,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-orange-300 via-cyan-300 to-emerald-300 text-slate-950 font-black">PX</div>
 <div>
-                  <div className="text-sm font-semibold text-white">ERP-ARCIAL</div>
+                  <div className="text-sm font-semibold text-white">VMS-ARCIL</div>
                   <div className="text-xs text-slate-400">{activeUser.role}</div>
                 </div>
           </div>
@@ -303,7 +303,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="flex items-center gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-orange-300 via-cyan-300 to-emerald-300 text-slate-950 font-black">PX</div>
 <div>
-                  <div className="text-base font-semibold">ERP-ARCIAL</div>
+                  <div className="text-base font-semibold">VMS-ARCIL</div>
                   <div className="text-xs text-slate-400">Vendor AP automation</div>
                 </div>
               </div>

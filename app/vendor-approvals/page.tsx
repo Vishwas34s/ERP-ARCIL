@@ -161,7 +161,7 @@ export default function VendorApprovalsPage() {
 
   return (
     <div className="space-y-5">
-      <Panel title="Finance Head vendor approval" subtitle="Vendor approval actions are reserved for Finance Head. Admin can monitor the same register without taking finance decisions.">
+      <Panel title="Finance Head vendor Details" subtitle="Vendor Details actions are reserved for Finance Head. Admin can monitor the same register without taking finance decisions.">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-white/10 bg-slate-950/45 p-4"><Building2 className="text-cyan-300" size={20} /><div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">Total applications</div><div className="mt-2 text-2xl font-semibold text-white">{stats.total}</div></div>
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4"><AlertTriangle className="text-amber-300" size={20} /><div className="mt-2 text-xs uppercase tracking-[0.18em] text-amber-300">Pending review</div><div className="mt-2 text-2xl font-semibold text-white">{stats.pending}</div></div>
@@ -171,7 +171,7 @@ export default function VendorApprovalsPage() {
       </Panel>
 
       <Panel
-        title={`Vendor approval list (${filtered.length})`}
+        title={`Vendor Details (${filtered.length})`}
         subtitle="Use search, status filter, type filter, and pagination for finance review."
         action={
           <div className="flex flex-wrap gap-2">

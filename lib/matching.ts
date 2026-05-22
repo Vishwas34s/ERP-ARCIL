@@ -198,7 +198,7 @@ export function validateManualInvoice(
   );
 
   if (!matchingVendor) {
-    variances.push({ field: 'Vendor', expected: 'Approved vendor in master', actual: draft.vendorName || 'Not selected', severity: 'critical' });
+    variances.push({ field: 'Vendor', expected: 'Approved Vendor in master', actual: draft.vendorName || 'Not selected', severity: 'critical' });
   } else {
     checks.vendorVerified = true;
     if (matchingVendor.blacklistFlag === 'Yes') {
